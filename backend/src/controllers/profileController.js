@@ -1,0 +1,127 @@
+const { PrismaClient } = require('@prisma/client');
+const prisma = new PrismaClient();
+
+const createProfile = async (req, res) => {
+    try {
+        const { program, level, semester, curriculum_type, current_cgpa, academic_goal } = req.body;
+        const user_id = req.user.id;
+
+        const existingProfile = await prisma.academicProfile.findUnique({
+            where: { user_id },
+        });
+
+        if (existingProfile) {
+            return res.status(400).json({ message: 'Profile already exists' });
+        }
+
+        const profile = await prisma.academicProfile.create({
+            data: {
+                user_id,
+                program,
+                level: parseInt(level),
+                semester: semester ? parseInt(semester) : 1,
+                curriculum_type,
+                current_cgpa: parseFloat(current_cgpa),
+                academic_goal,
+            },
+        });
+
+        // Determine session dates based on semester
+        const currentYear = new Date().getFullYear();
+        let startDate, endDate;
+        const semInt = semester ? parseInt(semester) : 1;
+        
+        if (semInt === 1) {
+            startDate = new Date(currentYear, 0, 1); // Jan 1
+            endDate = new Date(currentYear, 5, 30);  // Jun 30
+        } else {
+            startDate = new Date(currentYear, 6, 1); // Jul 1
+            endDate = new Date(currentYear, 11, 31); // Dec 31
+        }
+
+        const sessionName = `${currentYear} Session ${semInt}`;
+
+        // Create Academic Session
+        await prisma.academicSession.create({
+            data: {
+                user_id,
+                name: sessionName,
+                start_date: startDate,
+                end_date: endDate
+            }
+        });
+
+        // Advance Onboarding Stage
+        await prisma.user.update({
+            where: { id: user_id },
+            data: { onboarding_stage: 'COURSES' }
+        });
+
+        res.status(201).json(profile);
+    } catch (error) {
+        console.error(error);
+        res.status(500).json({ message: 'Server error creating profile' });
+    }
+};
+
+const getProfile = async (req, res) => {
+    try {
+        const profile = await prisma.academicProfile.findUnique({
+            where: { user_id: req.user.id },
+        });
+
+        if (!profile) {
+            return res.status(404).json({ message: 'Profile not found' });
+        }
+
+        res.json(profile);
+    } catch (error) {
+        console.error(error);
+        res.status(500).json({ message: 'Server error fetching profile' });
+    }
+};
+
+const updateProfile = async (req, res) => {
+    try {
+        const { program, level, curriculum_type, current_cgpa, academic_goal } = req.body;
+
+        const profile = await prisma.academicProfile.update({
+            where: { user_id: req.user.id },
+            data: {
+                program,
+                level: level ? parseInt(level) : undefined,
+                curriculum_type,
+                current_cgpa: current_cgpa ? parseFloat(current_cgpa) : undefined,
+                academic_goal,
+            },
+        });
+
+        res.json(profile);
+    } catch (error) {
+        console.error(error);
+        res.status(500).json({ message: 'Server error updating profile' });
+    }
+};
+
+const updateUserSettings = async (req, res) => {
+    try {
+        const { post_exam_preference, allow_morning_revision } = req.body;
+        const user = await prisma.user.update({
+            where: { id: req.user.id },
+            data: { 
+                post_exam_preference: post_exam_preference !== undefined ? post_exam_preference : undefined,
+                allow_morning_revision: allow_morning_revision !== undefined ? allow_morning_revision : undefined
+            }
+        });
+        res.json({ 
+            message: 'Settings updated successfully', 
+            post_exam_preference: user.post_exam_preference,
+            allow_morning_revision: user.allow_morning_revision
+        });
+    } catch (error) {
+        console.error(error);
+        res.status(500).json({ message: 'Server error updating settings' });
+    }
+}
+
+module.exports = { createProfile, getProfile, updateProfile, updateUserSettings };

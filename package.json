@@ -1,0 +1,13 @@
+{
+    "name": "nuero_plan_app",
+    "version": "1.0.0",
+    "description": "Root package.json to run frontend and backend concurrently",
+    "scripts": {
+        "install:all": "npm install --prefix backend && npm install --prefix frontend",
+        "dev": "npx concurrently \"npm run dev --prefix backend\" \"npm run dev --prefix frontend\"",
+        "start": "npx concurrently \"npm start --prefix backend\" \"npm start --prefix frontend\""
+    },
+    "devDependencies": {
+        "concurrently": "^8.2.2"
+    }
+}

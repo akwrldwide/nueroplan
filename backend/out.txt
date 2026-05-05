@@ -1,0 +1,56 @@
+Backend Changes (Recommended Model Updates) 
+Add these fields: 
+model AcademicSession { 
+  id            String   @ id @ default(cuid()) 
+  name          String   // e.g. "2026 Session" 
+  start_date    DateTime 
+  end_date      DateTime 
+  userCourses   UserCourse[] 
+} 
+ 
+model UserCourse { 
+  // ... existing fields 
+  semester      String   // "FIRST" or "SECOND" 
+  academicSessionId String? 
+  academicSession  AcademicSession? @ relation(fields: [academicSessionId], references: [id]) 
+} 
+ 
+During onboarding (you already collect current level): 
+●  Add a simple dropdown: “Current Semester” → First (Jan–Jun) or Second (Jul–Dec). 
+●  Auto-assign the correct academicSession based on today’s date. 
+Update generateStudyPlan 
+Add a semester filter at the top: 
+const currentSemester = userObj.current_semester; // "FIRST" or "SECOND" 
+ 
+// Only include topics from the current semester 
+const selectedTopics = await prisma.userTopic.findMany({ 
+    where: {  
+        user_id,  
+        is_selected: true, 
+        course: { semester: currentSemester } 
+    }, 
+    include: { course: true } 
+}); 
+W hen generating weeks: 
+●  Cap totalW eeks to the end of the current semester (instead of 16 weeks blindly). 
+●  After the semester end date → no more sessions (exactly as you want). 
+----------------Page (0) Break----------------
+3. Study History Split (Perfect UX Suggestion) 
+Current Semester History (default tab – what you already have): 
+●  Shows only sessions from the current semester. 
+●  Retroactive marking works here. 
+Global History (new page, nested under user avatar): 
+●  Full timeline of all past semesters. 
+●  Grouped by semester (2025 First, 2025 Second, 2026 First, etc.). 
+●  Summary cards: “Completed 14/18 courses”, total hours, average daily study, etc. 
+●  Export to PDF option (great for NOUN project submission). 
+UI Implementation Tip 
+Keep your two tabs (Main View | History): 
+●  Inside History, add a sub-filter: “Current Semester” (default) | “All Semesters”. 
+●  For the global page: Create a new route /history/global with a clean yearly timeline. 
+4. Extra Polish That Will Make This Feel Professional 
+●  W hen generating the plan, if today is after the semester end date → show a clear 
+message: “Semester has ended. No study sessions scheduled. View Global History?” 
+●  Add a small badge on the calendar for semester boundaries. 
+●  After final exam day, ensure no further sessions are generated. 
+----------------Page (1) Break----------------

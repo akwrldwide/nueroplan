@@ -1,0 +1,220 @@
+// This is your Prisma schema file,
+// learn more about it in the docs: https://pris.ly/d/prisma-schema
+
+generator client {
+  provider = "prisma-client-js"
+}
+
+datasource db {
+  provider = "postgresql"
+  url      = env("DATABASE_URL")
+}
+
+model User {
+  id               String   @id @default(uuid())
+  name             String
+  email            String   @unique
+  password_hash    String
+  onboarding_stage String    @default("PROFILE") // PROFILE, COURSES, AVAILABILITY, COMPLETE
+  created_at       DateTime  @default(now())
+  streak_count     Int       @default(0)
+  streak_last_updated DateTime?
+  post_exam_preference String @default("REST")
+  allow_morning_revision Boolean @default(false)
+
+  academicProfile AcademicProfile?
+  userCourses     UserCourse[]
+  userTopics      UserTopic[]
+  availabilities  StudyAvailability[]
+  studyPlans      StudyPlan[]
+  quizResults     QuizResult[]
+  progressLogs    ProgressLog[]
+  mistakeLogs     MistakeLog[]
+  academicSessions AcademicSession[]
+}
+
+model AcademicProfile {
+  id              String   @id @default(uuid())
+  user_id         String   @unique
+  program         String
+  level           Int
+  semester        Int      @default(1)
+  curriculum_type String // "BMAS" or "Upload"
+  current_cgpa    Float
+  academic_goal   String // "Pass All", "Improve GPA", "First Class"
+  created_at      DateTime @default(now())
+
+  user User @relation(fields: [user_id], references: [id], onDelete: Cascade)
+}
+
+model Program {
+  id      String   @id @default(uuid())
+  name    String   @unique
+  courses Course[]
+}
+
+model Course {
+  id         String @id @default(uuid())
+  program_id String
+  code       String
+  title      String
+  units      Int
+  difficulty Float
+  level      Int
+  semester   Int
+
+  program      Program       @relation(fields: [program_id], references: [id], onDelete: Cascade)
+  courseTopics CourseTopic[]
+  userCourses  UserCourse[]
+  userTopics   UserTopic[]
+  quizResults  QuizResult[]
+}
+
+model CourseTopic {
+  id             String @id @default(uuid())
+  course_id      String
+  topic_name     String
+  default_weight Float? @default(1.0)
+
+  course     Course      @relation(fields: [course_id], references: [id], onDelete: Cascade)
+  userTopics UserTopic[]
+}
+
+model UserCourse {
+  id          String    @id @default(uuid())
+  user_id     String
+  course_id   String
+  is_selected Boolean   @default(true)
+  exam_date   DateTime?
+  exam_time   String?
+  exam_venue  String?
+  exam_instructions String?
+  exam_duration Int?      @default(180)
+  is_completed Boolean  @default(false)
+
+  user         User          @relation(fields: [user_id], references: [id], onDelete: Cascade)
+  course       Course        @relation(fields: [course_id], references: [id], onDelete: Cascade)
+  progressLogs ProgressLog[]
+
+  academicSessionId String?
+  academicSession  AcademicSession? @relation(fields: [academicSessionId], references: [id])
+
+  @@unique([user_id, course_id])
+}
+
+model AcademicSession {
+  id            String   @id @default(uuid())
+  user_id       String
+  name          String   // e.g. "2026 Session 1"
+  start_date    DateTime
+  end_date      DateTime
+
+  user          User     @relation(fields: [user_id], references: [id], onDelete: Cascade)
+  userCourses   UserCourse[]
+}
+
+model UserTopic {
+  id              String   @id @default(uuid())
+  user_id         String
+  course_id       String
+  course_topic_id String?
+  topic_name      String // Supports custom topics where course_topic_id is null
+  mastery_level   Float    @default(0) // 0-1
+  is_selected     Boolean  @default(true)
+  created_at      DateTime @default(now())
+
+  user        User         @relation(fields: [user_id], references: [id], onDelete: Cascade)
+  course      Course       @relation(fields: [course_id], references: [id], onDelete: Cascade)
+  courseTopic CourseTopic? @relation(fields: [course_topic_id], references: [id], onDelete: Cascade)
+
+  sessions    StudySession[]
+  mistakeLogs MistakeLog[]
+}
+
+model StudyAvailability {
+  id          String @id @default(uuid())
+  user_id     String
+  day_of_week String // "Mon", "Tue", etc.
+  start_time  String // e.g., "08:00"
+  end_time    String // e.g., "10:00"
+
+  user User @relation(fields: [user_id], references: [id], onDelete: Cascade)
+}
+
+model StudyPlan {
+  id              String   @id @default(uuid())
+  user_id         String
+  generated_date  DateTime @default(now())
+  week_start_date DateTime
+
+  user     User           @relation(fields: [user_id], references: [id], onDelete: Cascade)
+  sessions StudySession[]
+}
+
+model StudySession {
+  id               String  @id @default(uuid())
+  study_plan_id    String
+  user_topic_id    String // Mapped to UserTopic instead of course_id
+  session_date     DateTime? @db.Date
+  day_of_week      String
+  start_time       String
+  end_time         String
+  duration_minutes Int     @default(0)
+  allocated_hours  Float
+  completed        Boolean @default(false)
+  break_after      Boolean @default(false)
+  session_type     String  @default("LEARN")
+  is_morning       Boolean @default(false)
+
+  studyPlan StudyPlan @relation(fields: [study_plan_id], references: [id], onDelete: Cascade)
+  topic     UserTopic @relation(fields: [user_topic_id], references: [id], onDelete: Cascade)
+}
+
+model QuizQuestion {
+  id             String @id @default(uuid())
+  course_id      String // Can map to Course ID now
+  question_text  String
+  option_a       String
+  option_b       String
+  option_c       String
+  option_d       String
+  correct_answer String // e.g. "A", "B", "C", "D"
+}
+
+model QuizResult {
+  id               String   @id @default(uuid())
+  user_id          String
+  course_id        String? // References Course ID gracefully
+  topic_name       String?
+  difficulty       Int?     @default(3)
+  score_percentage Float
+  taken_at         DateTime @default(now())
+
+  user   User    @relation(fields: [user_id], references: [id], onDelete: Cascade)
+  course Course? @relation(fields: [course_id], references: [id], onDelete: SetNull)
+}
+
+model ProgressLog {
+  id                   String @id @default(uuid())
+  user_id              String
+  user_course_id       String // Renamed from course_id to clarify
+  study_hours_logged   Float  @default(0)
+  checklist_completion Float  @default(0) // Percentage
+  consistency_score    Float  @default(1.0)
+
+  user       User       @relation(fields: [user_id], references: [id], onDelete: Cascade)
+  userCourse UserCourse @relation(fields: [user_course_id], references: [id], onDelete: Cascade)
+}
+
+model MistakeLog {
+  id             String   @id @default(uuid())
+  user_id        String
+  user_topic_id  String
+  question       String
+  correct_answer String
+  given_answer   String
+  created_at     DateTime @default(now())
+
+  user      User      @relation(fields: [user_id], references: [id], onDelete: Cascade)
+  userTopic UserTopic @relation(fields: [user_topic_id], references: [id], onDelete: Cascade)
+}
