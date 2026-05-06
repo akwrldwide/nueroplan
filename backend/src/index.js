@@ -46,6 +46,10 @@ app.use('/api/topics', topicRoutes);
 app.use('/api/mistakes', mistakeRoutes);
 app.use('/api/ai', aiRoutes);
 
+app.get("/", (req, res) => {
+  res.send("Nueroplan API is running 🚀");
+});
+
 app.get('/health', (req, res) => {
     res.status(200).json({ status: 'OK', message: 'Service is healthy' });
 });
