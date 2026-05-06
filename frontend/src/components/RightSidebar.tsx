@@ -1,5 +1,5 @@
 import { useState, useEffect } from 'react';
-import { PlayCircle, Loader2, X, ChevronRight, Check } from 'lucide-react';
+import { Loader2, X, ChevronRight, Check } from 'lucide-react';
 import axios from 'axios';
 import FlashcardQuiz from './FlashcardQuiz';
 
@@ -87,7 +87,7 @@ export default function RightSidebar() {
         <FlashcardQuiz 
           payload={activeQuizPayload} 
           onClose={() => setActiveQuizPayload(null)} 
-          onComplete={(score, total) => {
+          onComplete={() => {
             setActiveQuizPayload(null);
             fetchSidebarData();
           }} 

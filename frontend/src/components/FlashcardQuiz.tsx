@@ -385,7 +385,7 @@ export default function FlashcardQuiz({ payload, onClose, onComplete }: Flashcar
                     </div>
                 </motion.div>
             </div>
-          )}
+          ) : null}
         </div>
 
         {/* Footer Navigation */}
