@@ -20,7 +20,7 @@ export default function RightSidebar() {
   const fetchSidebarData = async () => {
     try {
       const headers = { Authorization: `Bearer ${localStorage.getItem('token')}` };
-      const topicsRes = await axios.get('http://localhost:5000/api/topics', { headers });
+      const topicsRes = await axios.get('/api/topics', { headers });
       setAllTopics(topicsRes.data || []);
     } catch (err) {
       console.error(err);

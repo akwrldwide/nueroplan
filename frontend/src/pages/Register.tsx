@@ -17,7 +17,7 @@ export default function Register() {
         setIsSubmitting(true);
         setErrorMsg('');
         try {
-            const res = await axios.post('http://localhost:5000/api/auth/register', data);
+            const res = await axios.post('/api/auth/register', data);
             login(res.data.token, res.data.user);
             navigate('/onboarding'); // Redirect straight to onboarding after register
         } catch (err: any) {

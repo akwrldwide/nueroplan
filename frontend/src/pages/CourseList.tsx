@@ -28,7 +28,7 @@ export default function CourseList() {
     const fetchCourses = async () => {
         setLoading(true);
         try {
-            const res = await axios.get('http://localhost:5000/api/courses');
+            const res = await axios.get('/api/courses');
             setCourses(res.data);
         } catch (error) {
             console.error(error);
@@ -78,7 +78,7 @@ export default function CourseList() {
         e.preventDefault();
         setIsSubmitting(true);
         try {
-            await axios.post('http://localhost:5000/api/courses/custom', formData);
+            await axios.post('/api/courses/custom', formData);
             fetchCourses();
             setIsAddModalOpen(false);
             setFormData({ code: '', title: '', units: 3, difficulty: 3 });
@@ -94,7 +94,7 @@ export default function CourseList() {
         if(!selectedCourse) return;
         setIsSubmitting(true);
         try {
-            await axios.put(`http://localhost:5000/api/courses/custom/${selectedCourse.id}`, formData);
+            await axios.put(`/api/courses/custom/${selectedCourse.id}`, formData);
             fetchCourses();
             setIsEditModalOpen(false);
         } catch(err) {
@@ -108,7 +108,7 @@ export default function CourseList() {
         if(!selectedCourse) return;
         setIsSubmitting(true);
         try {
-            await axios.delete(`http://localhost:5000/api/courses/user-course/${selectedCourse.id}`);
+            await axios.delete(`/api/courses/user-course/${selectedCourse.id}`);
             fetchCourses();
             setIsDeleteModalOpen(false);
         } catch(err) {

@@ -15,10 +15,10 @@ export default function Analytics() {
   const fetchData = async () => {
     try {
       const [mistakesRes, topicsRes] = await Promise.all([
-        axios.get('http://localhost:5000/api/mistakes', {
+        axios.get('/api/mistakes', {
           headers: { Authorization: `Bearer ${localStorage.getItem('token')}` }
         }),
-        axios.get('http://localhost:5000/api/topics', {
+        axios.get('/api/topics', {
           headers: { Authorization: `Bearer ${localStorage.getItem('token')}` }
         })
       ]);

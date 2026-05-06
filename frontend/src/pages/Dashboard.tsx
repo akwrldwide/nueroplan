@@ -66,10 +66,10 @@ export default function Dashboard() {
             examInstructions: examDrafts[id].instructions
         }));
         try {
-            await axios.post('http://localhost:5000/api/courses/bulk-update', { courses: payload });
+            await axios.post('/api/courses/bulk-update', { courses: payload });
             setIsBulkExamModalOpen(false);
             setShowRegenerateModal(true);
-            const coursesRes = await axios.get('http://localhost:5000/api/courses');
+            const coursesRes = await axios.get('/api/courses');
             setCourses(coursesRes.data);
         } catch (e) {
             alert("Failed to save exam dates");
@@ -89,17 +89,17 @@ export default function Dashboard() {
         setLoading(true);
         try {
             const [statsRes, planRes, coursesRes, topicsRes] = await Promise.all([
-                axios.get('http://localhost:5000/api/progress/dashboard'),
-                axios.get('http://localhost:5000/api/plan/current').catch(() => ({ data: null })),
-                axios.get('http://localhost:5000/api/courses'),
-                axios.get('http://localhost:5000/api/topics')
+                axios.get('/api/progress/dashboard'),
+                axios.get('/api/plan/current').catch(() => ({ data: null })),
+                axios.get('/api/courses'),
+                axios.get('/api/topics')
             ]);
             setStats(statsRes.data);
             setPlan(planRes.data);
             setCourses(coursesRes.data);
 
             // Neuro Insight deactivated per requirement 
-            // axios.get('http://localhost:5000/api/ai/motivation')
+            // axios.get('/api/ai/motivation')
             //     .then(aiRes => {
             //         if (aiRes.data?.insight) {
             //             setStats((prev: any) => prev ? { ...prev, aiInsight: aiRes.data.insight } : prev);
@@ -125,7 +125,7 @@ export default function Dashboard() {
         const isForce = typeof forceFullSemester === 'boolean' ? forceFullSemester : false;
         setIsRecalculating(true);
         try {
-            const res = await axios.post('http://localhost:5000/api/plan/generate', { fullRecalculate: true, forceFullSemester: isForce });
+            const res = await axios.post('/api/plan/generate', { fullRecalculate: true, forceFullSemester: isForce });
             if (res.data && res.data.notification) {
                 setPlanNotification(res.data.notification);
             }
@@ -152,7 +152,7 @@ export default function Dashboard() {
 
         try {
             const dateStr = selectedDate.toISOString();
-            const res = await axios.post('http://localhost:5000/api/progress/session/complete', { 
+            const res = await axios.post('/api/progress/session/complete', { 
                 session_id: sessionId,
                 current_date: dateStr
             });
@@ -184,7 +184,7 @@ export default function Dashboard() {
 
     const handleSaveSettings = async () => {
         try {
-            await axios.put('http://localhost:5000/api/profile/settings', { 
+            await axios.put('/api/profile/settings', { 
                 post_exam_preference: studyPref,
                 allow_morning_revision: allowMorningRevision
             });
@@ -361,7 +361,7 @@ export default function Dashboard() {
                                     <button 
                                        onClick={async () => {
                                            try {
-                                               await axios.post(`http://localhost:5000/api/courses/${c.id}/mark-completed`);
+                                               await axios.post(`/api/courses/${c.id}/mark-completed`);
                                                confetti({ particleCount: 100, spread: 60, origin: { y: 0.6 }, colors: ['#10B981', '#047857'] });
                                                await handleRecalculate();
                                            } catch(e) {

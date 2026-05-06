@@ -26,8 +26,8 @@ export default function QuizTracker() {
     try {
       const headers = { Authorization: `Bearer ${localStorage.getItem('token')}` };
       const [coursesRes, insightsRes] = await Promise.all([
-        axios.get('http://localhost:5000/api/courses', { headers }),
-        axios.get('http://localhost:5000/api/quiz/insights', { headers })
+        axios.get('/api/courses', { headers }),
+        axios.get('/api/quiz/insights', { headers })
       ]);
       setCourses(coursesRes.data);
       setInsights(insightsRes.data);
@@ -40,7 +40,7 @@ export default function QuizTracker() {
     setLoading(true);
     try {
       const headers = { Authorization: `Bearer ${localStorage.getItem('token')}` };
-      const res = await axios.get(`http://localhost:5000/api/quiz/results?time_range=${timeRange}&course_id=${courseFilter}`, { headers });
+      const res = await axios.get(`/api/quiz/results?time_range=${timeRange}&course_id=${courseFilter}`, { headers });
       setResults(res.data);
     } catch (err) {
       console.error('Failed to fetch filtered quiz results', err);

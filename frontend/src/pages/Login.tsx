@@ -18,7 +18,7 @@ export default function Login() {
         setIsSubmitting(true);
         setErrorMsg('');
         try {
-            const res = await axios.post('http://localhost:5000/api/auth/login', data);
+            const res = await axios.post('/api/auth/login', data);
             login(res.data.token, res.data.user);
             if (res.data.user.onboarding_stage !== 'COMPLETE') {
                 navigate('/onboarding');

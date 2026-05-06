@@ -22,7 +22,7 @@ export default function GlobalHistory() {
     useEffect(() => {
         const fetchHistory = async () => {
             try {
-                const res = await axios.get('http://localhost:5000/api/progress/history/global');
+                const res = await axios.get('/api/progress/history/global');
                 setTimeline(res.data.timeline || []);
             } catch (err) {
                 console.error("Error fetching global history:", err);

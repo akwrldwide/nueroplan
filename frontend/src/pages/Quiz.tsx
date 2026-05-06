@@ -15,7 +15,7 @@ export default function Quiz() {
     useEffect(() => {
         const fetchQuestions = async () => {
             try {
-                const res = await axios.get(`http://localhost:5000/api/quiz/${courseId}`);
+                const res = await axios.get(`/api/quiz/${courseId}`);
                 // If there are no seeded questions, we mock 3 questions for demonstration
                 if (res.data.length === 0) {
                     setQuestions([
@@ -48,7 +48,7 @@ export default function Quiz() {
         setSubmitting(true);
         try {
             // In a real scenario we post to backend
-            // await axios.post(`http://localhost:5000/api/quiz/${courseId}`, { answers });
+            // await axios.post(`/api/quiz/${courseId}`, { answers });
 
             // For instant UI demo feedback, we evaluate here as well
             let correctCount = 0;

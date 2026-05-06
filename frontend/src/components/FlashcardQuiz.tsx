@@ -40,7 +40,7 @@ export default function FlashcardQuiz({ payload, onClose, onComplete }: Flashcar
   const startQuiz = async () => {
     setLoading(true);
     try {
-        const response = await axios.post('http://localhost:5000/api/quiz/generate', {
+        const response = await axios.post('/api/quiz/generate', {
             isWholeCourse: payload.isWholeCourse,
             topics: payload.topics,
             course_name: payload.course?.title || '',
@@ -81,7 +81,7 @@ export default function FlashcardQuiz({ payload, onClose, onComplete }: Flashcar
     
     try {
         if (payload.course?.id) {
-            await axios.post('http://localhost:5000/api/quiz/ai-result', {
+            await axios.post('/api/quiz/ai-result', {
                 course_id: payload.course.id,
                 topic_name: payload.isWholeCourse ? 'Whole Course' : payload.topics.join(', '),
                 difficulty: avgDifficulty,
@@ -104,7 +104,7 @@ export default function FlashcardQuiz({ payload, onClose, onComplete }: Flashcar
     const isCorrect = option === questions[currentIndex]['Correct Answer'];
     if (!isCorrect) {
       // Log Mistake (null topic_id for whole course since it maps to course loosely)
-      axios.post('http://localhost:5000/api/mistakes', {
+      axios.post('/api/mistakes', {
         topic_id: null,
         question: questions[currentIndex].Question,
         correct_answer: questions[currentIndex]['Correct Answer'],

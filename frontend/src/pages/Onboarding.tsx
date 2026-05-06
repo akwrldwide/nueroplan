@@ -95,7 +95,7 @@ export default function Onboarding() {
 
     const loadUserCoursesForTopics = async () => {
         try {
-            const res = await axios.get('http://localhost:5000/api/courses');
+            const res = await axios.get('/api/courses');
             setUserCourses(res.data);
             const initialSelected: Record<string, any[]> = {};
             res.data.forEach((uc: any) => {
@@ -150,10 +150,10 @@ export default function Onboarding() {
         e.preventDefault();
         setIsSubmitting(true);
         try {
-            await axios.post('http://localhost:5000/api/profile', profileData);
+            await axios.post('/api/profile', profileData);
 
             if (profileData.curriculum_type === 'BMAS') {
-                const res = await axios.get(`http://localhost:5000/api/courses/curriculum?program=${profileData.program}&level=${profileData.level}&semester=${profileData.semester}`);
+                const res = await axios.get(`/api/courses/curriculum?program=${profileData.program}&level=${profileData.level}&semester=${profileData.semester}`);
                 setCourses(res.data);
             }
             await reloadUser();
@@ -162,7 +162,7 @@ export default function Onboarding() {
             if (error.response?.status === 400 && error.response?.data?.message === 'Profile already exists') {
                 try {
                     if (profileData.curriculum_type === 'BMAS') {
-                        const res = await axios.get(`http://localhost:5000/api/courses/curriculum?program=${profileData.program}&level=${profileData.level}&semester=${profileData.semester}`);
+                        const res = await axios.get(`/api/courses/curriculum?program=${profileData.program}&level=${profileData.level}&semester=${profileData.semester}`);
                         setCourses(res.data);
                     }
                     setStep(2);
@@ -181,7 +181,7 @@ export default function Onboarding() {
         setIsSubmitting(true);
         try {
             if (courses.length > 0) {
-                await axios.post('http://localhost:5000/api/courses', { courses });
+                await axios.post('/api/courses', { courses });
             } else {
                 alert("Please add courses");
                 setIsSubmitting(false);
@@ -251,7 +251,7 @@ export default function Onboarding() {
                 allTopicsToSave = [...allTopicsToSave, ...courseArray];
             });
 
-            await axios.post('http://localhost:5000/api/topics/save', { topics: allTopicsToSave });
+            await axios.post('/api/topics/save', { topics: allTopicsToSave });
             await reloadUser();
             
             if (user?.onboarding_stage === 'COMPLETE') {
@@ -293,9 +293,9 @@ export default function Onboarding() {
                 return;
             }
 
-            await axios.post('http://localhost:5000/api/availability', { availabilities: finalAvailabilities });
+            await axios.post('/api/availability', { availabilities: finalAvailabilities });
 
-            await axios.post('http://localhost:5000/api/plan/generate');
+            await axios.post('/api/plan/generate');
 
             await reloadUser();
         } catch (error) {

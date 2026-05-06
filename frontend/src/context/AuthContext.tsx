@@ -44,7 +44,7 @@ export const AuthProvider = ({ children }: { children: ReactNode }) => {
                 return;
             }
             try {
-                const res = await axios.get('http://localhost:5000/api/auth/me');
+                const res = await axios.get('/api/auth/me');
                 setUser(res.data);
             } catch (error) {
                 console.error('Error fetching user', error);
@@ -74,7 +74,7 @@ export const AuthProvider = ({ children }: { children: ReactNode }) => {
     const reloadUser = async () => {
         if (!token) return;
         try {
-            const res = await axios.get('http://localhost:5000/api/auth/me');
+            const res = await axios.get('/api/auth/me');
             setUser(res.data);
         } catch (error) {
             console.error('Error reloading user', error);
