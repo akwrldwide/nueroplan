@@ -7,7 +7,7 @@ const prisma = new PrismaClient();
 
 router.post('/generate', authMiddleware, async (req, res) => {
     try {
-        const { fullRecalculate, forceFullSemester } = req.body;
+        const { fullRecalculate, forceFullSemester } = req.body || {};
         const plan = await generateStudyPlan(req.user.id, fullRecalculate, forceFullSemester);
         res.status(201).json({ message: 'Study plan generated', plan });
     } catch (error) {

@@ -16,7 +16,10 @@ const getAvailability = async (req, res) => {
 
 const saveAvailability = async (req, res) => {
     try {
-        const { availabilities } = req.body; // Array of { day_of_week, start_time, end_time }
+        const { availabilities } = req.body || {}; // Array of { day_of_week, start_time, end_time }
+        if (!availabilities) {
+            return res.status(400).json({ error: "Availabilities required" });
+        }
         const user_id = req.user.id;
 
         // Clear existing for user
