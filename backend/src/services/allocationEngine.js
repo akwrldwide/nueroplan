@@ -104,28 +104,27 @@ async function generateStudyPlan(user_id, fullRecalculate = false, forceFullSeme
     }
 
     let totalWeeks = 16;
-    const planStartDate = (forceFullSemester && activeSession) ? activeSession.start_date : today;
     
-    // Determine effective end date: final exam date (if any) or semester end
+    // Step 1: Always anchor to semester start
+    const planStartDate = activeSession ? activeSession.start_date : today;
+    
+    // Step 2: Determine planning horizon
     let effectiveEndDate = null;
-    if (activeSession) {
-        effectiveEndDate = latestExamDate && latestExamDate < activeSession.end_date 
-            ? latestExamDate 
-            : activeSession.end_date;
-        
-        // Ensure effectiveEndDate covers the end of the day bounds
-        effectiveEndDate = new Date(effectiveEndDate);
-        effectiveEndDate.setHours(23, 59, 59, 999);
-        
-        const diffDays = Math.ceil((effectiveEndDate.getTime() - planStartDate.getTime()) / (1000 * 60 * 60 * 24));
-        totalWeeks = Math.max(1, Math.ceil(diffDays / 7));
-    } else if (latestExamDate) {
+    if (latestExamDate) {
+        // Case B: Exams exist
         effectiveEndDate = new Date(latestExamDate);
-        effectiveEndDate.setHours(23, 59, 59, 999);
-        
-        const diffDays = Math.ceil((effectiveEndDate.getTime() - today.getTime()) / (1000 * 60 * 60 * 24));
-        totalWeeks = Math.max(1, Math.ceil(diffDays / 7));
+    } else if (activeSession) {
+        // Case A: No exams provided
+        effectiveEndDate = new Date(activeSession.end_date);
+    } else {
+        effectiveEndDate = new Date(planStartDate);
+        effectiveEndDate.setDate(effectiveEndDate.getDate() + (16 * 7)); // Fallback
     }
+
+    effectiveEndDate.setHours(23, 59, 59, 999);
+    
+    const diffDays = Math.ceil((effectiveEndDate.getTime() - planStartDate.getTime()) / (1000 * 60 * 60 * 24));
+    totalWeeks = Math.max(1, Math.ceil(diffDays / 7));
 
     if (totalWeeks > 24) totalWeeks = 24; // Sanity cap
 
