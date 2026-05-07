@@ -199,17 +199,17 @@ export default function Dashboard() {
     const todayMidnight = new Date();
     todayMidnight.setHours(0, 0, 0, 0);
 
-    let effectiveEndDate = new Date(0);
+    let effectiveEndDate: Date | null = null;
     if (courses && courses.length > 0) {
-        courses.forEach(c => {
+        for (const c of courses) {
             if (c.exam_date) {
                 const ed = new Date(c.exam_date);
                 ed.setHours(0,0,0,0);
-                if (ed > effectiveEndDate) effectiveEndDate = ed;
+                if (!effectiveEndDate || ed > effectiveEndDate) effectiveEndDate = ed;
             }
-        });
+        }
     }
-    const isAfterFinalExam = courses && courses.length > 0 && todayMidnight > effectiveEndDate;
+    const isAfterFinalExam = courses && courses.length > 0 && effectiveEndDate && todayMidnight > effectiveEndDate;
 
     if (loading) return <div className="h-screen flex items-center justify-center text-gray-500">Loading Dashboard...</div>;
 
