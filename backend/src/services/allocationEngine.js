@@ -468,20 +468,15 @@ async function generateStudyPlan(user_id, fullRecalculate = false, forceFullSeme
 
                 if (validTopics.length === 0) break;
 
-                // Interleaving Rule: No more than 2 consecutive sessions of the same course
+                // Interleaving Rule: Strict alternation - no consecutive sessions of the same course
                 let lastCourseId = null;
-                if (sessionData.length >= 2) {
+                if (sessionData.length >= 1) {
                     let lastS1 = sessionData[sessionData.length - 1];
-                    let lastS2 = sessionData[sessionData.length - 2];
                     
                     // Apply rule only within the same day for tighter interleaving
-                    if (lastS1.session_date.getTime() === slot.exactDate.getTime() && 
-                        lastS2.session_date.getTime() === slot.exactDate.getTime()) {
-                        
+                    if (lastS1.session_date.getTime() === slot.exactDate.getTime()) {
                         let t1 = weeklyTopics.find(t => t.id === lastS1.user_topic_id);
-                        let t2 = weeklyTopics.find(t => t.id === lastS2.user_topic_id);
-                        
-                        if (t1 && t2 && t1.course_id === t2.course_id) {
+                        if (t1) {
                             lastCourseId = t1.course_id;
                         }
                     }
