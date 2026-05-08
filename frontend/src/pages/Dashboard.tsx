@@ -2,7 +2,7 @@ import { useState, useEffect, useContext } from 'react';
 import axios from 'axios';
 import { useNavigate } from 'react-router-dom';
 import { AuthContext } from '../context/AuthContext';
-import { CalendarDays, BrainCircuit, RefreshCw, X, List, User as UserIcon, Activity, ChevronDown, Settings, LogOut, AlertTriangle, BookOpen, Clock } from 'lucide-react';
+import { CalendarDays, BrainCircuit, RefreshCw, X, User as UserIcon, Activity, ChevronDown, Settings, LogOut, AlertTriangle, BookOpen, Clock } from 'lucide-react';
 import confetti from 'canvas-confetti';
 import SummaryCards from '../components/SummaryCards';
 import RightSidebar from '../components/RightSidebar';
@@ -403,7 +403,7 @@ export default function Dashboard() {
                             </div>
                         )}
 
-                        {process.env.NODE_ENV !== 'production' && (
+                        {import.meta.env.MODE !== 'production' && (
                             <div className="bg-purple-50 border border-purple-200 rounded-2xl p-4 flex justify-between items-center mt-6">
                                 <span className="text-purple-800 font-bold">Dev Tool:</span>
                                 <button 
