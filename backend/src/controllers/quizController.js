@@ -49,7 +49,7 @@ const submitQuiz = async (req, res) => {
         const Q_i = score_percentage / 100;
         
         const topics = await prisma.userTopic.findMany({
-            where: { user_id: req.user.id, course_id }
+            where: { user_id: req.user.id, course_id, is_archived: false }
         });
         
         for (const t of topics) {
@@ -77,7 +77,7 @@ const generateQuiz = async (req, res) => {
             return res.status(500).json({ error: 'Gemini API Key missing' });
         }
         
-        let mistakeWhere = { user_id: userId };
+        let mistakeWhere = { user_id: userId, is_archived: false };
         if (!isWholeCourse && topics && topics.length > 0) {
             mistakeWhere.userTopic = { topic_name: { in: topics } };
         }
@@ -145,7 +145,7 @@ const saveAIQuizResult = async (req, res) => {
         // Adaptive Learning Model: M_i(t+1) = M_i(t) + η(Q_i - M_i(t))
         if (topic_name) {
             const userTopic = await prisma.userTopic.findFirst({
-                where: { user_id: req.user.id, course_id, topic_name }
+                where: { user_id: req.user.id, course_id, topic_name, is_archived: false }
             });
 
             if (userTopic) {

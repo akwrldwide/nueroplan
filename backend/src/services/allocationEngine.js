@@ -26,6 +26,7 @@ async function generateStudyPlan(user_id, fullRecalculate = false, forceFullSeme
         where: { 
             user_id, 
             is_selected: true,
+            is_archived: false,
             course: { semester: currentSemester }
         },
         include: { course: true }
@@ -40,7 +41,7 @@ async function generateStudyPlan(user_id, fullRecalculate = false, forceFullSeme
     if (totalAvailableWeeklyHours <= 0) throw new Error("Available hours must be greater than 0");
 
     const userCourses = await prisma.userCourse.findMany({ 
-        where: { user_id, course: { semester: currentSemester } },
+        where: { user_id, is_archived: false, course: { semester: currentSemester } },
         include: { course: true }
     });
     const dictUserCourses = {};
@@ -53,7 +54,7 @@ async function generateStudyPlan(user_id, fullRecalculate = false, forceFullSeme
         orderBy: { start_date: 'desc' }
     });
 
-    if (activeSession && today > activeSession.end_date) {
+    if (activeSession && activeSession.end_date && today > activeSession.end_date) {
         return {
             id: 'ended',
             sessions: [],
@@ -113,9 +114,17 @@ async function generateStudyPlan(user_id, fullRecalculate = false, forceFullSeme
     if (latestExamDate) {
         // Case B: Exams exist
         effectiveEndDate = new Date(latestExamDate);
-    } else if (activeSession) {
-        // Case A: No exams provided
+    } else if (activeSession && activeSession.end_date) {
+        // Case A: End date explicitly provided (e.g., archived session)
         effectiveEndDate = new Date(activeSession.end_date);
+    } else if (activeSession && !activeSession.end_date) {
+        // Case C: Active session, infer end date from semester window
+        const currentYear = new Date(activeSession.start_date).getFullYear();
+        if (activeSession.semester === '1st Semester') {
+            effectiveEndDate = new Date(currentYear, 5, 30); // June 30
+        } else {
+            effectiveEndDate = new Date(currentYear, 11, 31); // Dec 31
+        }
     } else {
         effectiveEndDate = new Date(planStartDate);
         effectiveEndDate.setDate(effectiveEndDate.getDate() + (16 * 7)); // Fallback
@@ -130,7 +139,7 @@ async function generateStudyPlan(user_id, fullRecalculate = false, forceFullSeme
 
     const isExamCluster = upcomingExams >= 3;
 
-    const progressLogs = await prisma.progressLog.findMany({ where: { user_id } });
+    const progressLogs = await prisma.progressLog.findMany({ where: { user_id, is_archived: false } });
     const dictProgressLogs = {};
     for (const p of progressLogs) {
         dictProgressLogs[p.user_course_id] = p;
@@ -182,9 +191,9 @@ async function generateStudyPlan(user_id, fullRecalculate = false, forceFullSeme
     const userTopicIds = topicsWithPriority.map(t => t.id);
 
     // Delete future/current uncompleted sessions for recalculation to prevent duplicate pileups.
-    // We preserve past uncompleted sessions (history) by using planStartDate exactly as the boundary.
+    // We preserve past uncompleted sessions (history) by using todayMidnight as the boundary.
     if (fullRecalculate) {
-        const boundaryDate = new Date(planStartDate);
+        const boundaryDate = new Date(todayMidnight);
         boundaryDate.setHours(0, 0, 0, 0);
         
         await prisma.studySession.deleteMany({
@@ -322,237 +331,236 @@ async function generateStudyPlan(user_id, fullRecalculate = false, forceFullSeme
             }
         }
 
-        for (const t of topicsWithPriority) {
-            let minsNeeded = Math.round(t.allocatedHours * 60);
-            
+        let weeklyTopics = topicsWithPriority.map(t => {
             let courseForT = userCourses.find(uc => uc.course_id === t.course_id);
-            let hasFutureExam = courseForT && courseForT.exam_date && !courseForT.is_completed;
-            if (minsNeeded <= 0 && !hasFutureExam) continue;
+            return {
+                ...t,
+                courseForT: courseForT,
+                minsNeeded: Math.round(t.allocatedHours * 60)
+            };
+        });
 
-            for (const slot of availableSlots) {
-                const slotDateStr = slot.exactDate.toISOString().split('T')[0];
-                const isExamDayForThisCourse = courseForT && courseForT.exam_date && courseForT.exam_date.toISOString().split('T')[0] === slotDateStr;
+        for (const slot of availableSlots) {
+            const slotDateStr = slot.exactDate.toISOString().split('T')[0];
 
-                if (minsNeeded <= 0 && !isExamDayForThisCourse) {
-                     continue;
-                }
+            // STRICT BOUNDARY: Only generate within semester and before effective end date
+            // Do not generate new sessions in the past; preserve the history that was already recorded
+            if ((effectiveEndDate && slot.exactDate > effectiveEndDate) || 
+                (activeSession && slot.exactDate < activeSession.start_date) || 
+                (slot.exactDate < todayMidnight)) {
+                continue;
+            }
 
-                // STRICT BOUNDARY: Only generate within semester and before effective end date
-                if ((effectiveEndDate && slot.exactDate > effectiveEndDate) || (activeSession && slot.exactDate < activeSession.start_date)) continue;
+            const examsOnThisDayCheck = userCourses.filter(uc => uc.exam_date && !uc.is_completed && uc.exam_date.toISOString().split('T')[0] === slotDateStr);
+            const isExamDay = examsOnThisDayCheck.length > 0;
+            const isFinalExamDay = latestExamDate && slotDateStr === latestExamDate.toISOString().split('T')[0];
 
-                // === EXAM DAY REVISION ONLY RULE ===
-                const examsOnThisDayCheck = userCourses.filter(uc => uc.exam_date && !uc.is_completed && uc.exam_date.toISOString().split('T')[0] === slotDateStr);
-                const isExamDay = examsOnThisDayCheck.length > 0;
-                
-                const isFinalExamDay = latestExamDate && slotDateStr === latestExamDate.toISOString().split('T')[0];
-
-                let nextExams = []; 
-                let minDiff = Infinity; 
-                for (const uc of userCourses) { 
-                    if (uc.exam_date && !uc.is_completed) { 
-                        const diff = (new Date(uc.exam_date).getTime() - slot.exactDate.getTime()) / (1000 * 60 * 60 * 24); 
-                        if (diff > 0 && diff <= minDiff) { 
-                            if (diff < minDiff) {
-                                minDiff = diff; 
-                                nextExams = [uc];
-                            } else {
-                                nextExams.push(uc);
-                            }
-                        } 
+            let nextExams = []; 
+            let minDiff = Infinity; 
+            for (const uc of userCourses) { 
+                if (uc.exam_date && !uc.is_completed) { 
+                    const diff = (new Date(uc.exam_date).getTime() - slot.exactDate.getTime()) / (1000 * 60 * 60 * 24); 
+                    if (diff > 0 && diff <= minDiff) { 
+                        if (diff < minDiff) {
+                            minDiff = diff; 
+                            nextExams = [uc];
+                        } else {
+                            nextExams.push(uc);
+                        }
                     } 
                 } 
-                const nextDayHasExam = nextExams.length > 0 && minDiff <= 1;
+            } 
+            const nextDayHasExam = nextExams.length > 0 && minDiff <= 1;
 
+            let maxMinutesToday = 180; 
+            if (isFinalExamDay) { 
+                maxMinutesToday = 60; 
+            } else if (isExamDay && nextDayHasExam) {
+                maxMinutesToday = 100;
+            } else if (isExamDay) { 
+                maxMinutesToday = 75; 
+            } else if (nextDayHasExam) { 
+                maxMinutesToday = 100; 
+            } 
+
+            let dailyMinsUsed = dailyMinsUsedMap[slotDateStr] || 0; 
+            let slotRemainingMins = getDiffMins(slot.current_time, slot.end_time); 
+
+            // Forced morning revision check before normal slot allocation
+            if (allowMorningRevision && dailyMinsUsed < 45) {
+                const userHasMorningSlot = availabilities.some(a => parseInt(a.start_time.split(':')[0]) < 12);
+                if (!userHasMorningSlot) {
+                    for (let t of weeklyTopics) {
+                        let isExaminedTopicToday = isExamDay && examsOnThisDayCheck.some(uc => uc.course_id === t.course_id);
+                        let isNextExamTopic = nextExams.some(nx => nx.course_id === t.course_id);
+                        let qualifiesForMorning = (isExamDay && isExaminedTopicToday) || (!isExamDay && nextDayHasExam && isNextExamTopic);
+                        let courseKey = `${slotDateStr}_${t.course_id}`;
+
+                        if (qualifiesForMorning && !courseMorningAssigned[courseKey] && t.minsNeeded > 0) {
+                            let ignoreMinsNeededForMorning = false;
+                            let maxMorningChunk = 45;
+                            if (isExamDay) {
+                                maxMorningChunk = Math.floor(45 / Math.max(1, examsOnThisDayCheck.length));
+                                ignoreMinsNeededForMorning = true;
+                            }
+                            
+                            let possibleLength = Math.min(maxMorningChunk, maxMinutesToday - dailyMinsUsed);
+                            if (!ignoreMinsNeededForMorning) possibleLength = Math.min(possibleLength, t.minsNeeded);
+                            
+                            if (possibleLength >= 15) { 
+                                let startTime = morningRevisionCurrentTime[slotDateStr] || "07:00";
+                                sessionData.push({ 
+                                    study_plan_id: studyPlan.id, 
+                                    user_topic_id: t.id, 
+                                    session_date: slot.exactDate, 
+                                    day_of_week: slot.day_of_week,
+                                    start_time: startTime, 
+                                    end_time: addMinutes(startTime, possibleLength), 
+                                    duration_minutes: possibleLength, 
+                                    allocated_hours: parseFloat((possibleLength / 60).toFixed(2)),
+                                    break_after: true, 
+                                    session_type: "REVISION", 
+                                    is_morning: true 
+                                }); 
+                                dailyMinsUsed += possibleLength; 
+                                t.minsNeeded -= possibleLength;
+                                morningRevisionCurrentTime[slotDateStr] = addMinutes(startTime, possibleLength + 5);
+                                courseMorningAssigned[courseKey] = true;
+                            } 
+                        }
+                    }
+                }
+            }
+
+            while (slotRemainingMins >= 20 && dailyMinsUsed < maxMinutesToday) { 
+                let validTopics = weeklyTopics.filter(t => {
+                    if (t.minsNeeded <= 0) return false;
+                    let courseForT = t.courseForT;
+                    
+                    if (courseForT && courseForT.exam_date) {
+                        const examDateOnly = new Date(courseForT.exam_date.getFullYear(), courseForT.exam_date.getMonth(), courseForT.exam_date.getDate());
+                        if (slot.exactDate > examDateOnly) {
+                            t.minsNeeded = 0; 
+                            return false;
+                        }
+                    }
+
+                    let isExaminedTopicToday = isExamDay && examsOnThisDayCheck.some(uc => uc.course_id === t.course_id);
+                    let isNextExamTopic = nextExams.some(nx => nx.course_id === t.course_id);
+
+                    if (isExamDay && !isExaminedTopicToday && !isNextExamTopic) return false; 
+                    if (slot.isPreExamBlock && slot.preExamCourseId !== t.course_id) return false;
+                    
+                    let qualifiesForEvening = true;
+                    if (isExamDay) {
+                         if (isFinalExamDay) {
+                             qualifiesForEvening = isExaminedTopicToday;
+                         } else if (nextDayHasExam && !isFinalExamDay) {
+                             qualifiesForEvening = isNextExamTopic;
+                         } else {
+                             qualifiesForEvening = isExaminedTopicToday;
+                         }
+                    }
+                    if (!qualifiesForEvening) return false;
+                    
+                    return true;
+                });
+
+                if (validTopics.length === 0) break;
+
+                // Interleaving Rule: No more than 2 consecutive sessions of the same course
+                let lastCourseId = null;
+                if (sessionData.length >= 2) {
+                    let lastS1 = sessionData[sessionData.length - 1];
+                    let lastS2 = sessionData[sessionData.length - 2];
+                    
+                    // Apply rule only within the same day for tighter interleaving
+                    if (lastS1.session_date.getTime() === slot.exactDate.getTime() && 
+                        lastS2.session_date.getTime() === slot.exactDate.getTime()) {
+                        
+                        let t1 = weeklyTopics.find(t => t.id === lastS1.user_topic_id);
+                        let t2 = weeklyTopics.find(t => t.id === lastS2.user_topic_id);
+                        
+                        if (t1 && t2 && t1.course_id === t2.course_id) {
+                            lastCourseId = t1.course_id;
+                        }
+                    }
+                }
+
+                let candidateTopics = validTopics.filter(t => t.course_id !== lastCourseId);
+                let selectedTopic = null;
+                
+                if (candidateTopics.length > 0) {
+                    candidateTopics.sort((a, b) => b.minsNeeded - a.minsNeeded);
+                    selectedTopic = candidateTopics[0];
+                } else {
+                    // Fallback to avoid dead time if only 1 course is available
+                    validTopics.sort((a, b) => b.minsNeeded - a.minsNeeded);
+                    selectedTopic = validTopics[0];
+                }
+
+                let t = selectedTopic;
+                let courseForT = t.courseForT;
                 let isExaminedTopicToday = isExamDay && examsOnThisDayCheck.some(uc => uc.course_id === t.course_id);
                 let isNextExamTopic = nextExams.some(nx => nx.course_id === t.course_id);
-
-                if (isExamDay && !isExaminedTopicToday && !isNextExamTopic) {
-                     continue; 
-                }
-
-                // Skip if pre-exam block and not matching course
-                if (slot.isPreExamBlock && slot.preExamCourseId !== t.course_id) continue;
-
-                // Determine daily max minutes (keep balance) 
-                let maxMinutesToday = 180; 
-                if (isFinalExamDay) { 
-                    maxMinutesToday = 60; 
-                } else if (isExamDay && nextDayHasExam) {
-                    maxMinutesToday = 100;
-                } else if (isExamDay) { 
-                    maxMinutesToday = 75; 
-                } else if (nextDayHasExam) { 
-                    maxMinutesToday = 100; 
-                } 
-                
-                let dailyMinsUsed = dailyMinsUsedMap[slotDateStr] || 0; 
-                
-                // ==================== SMART MORNING REVISION ==================== 
-                let qualifiesForMorning = (isExamDay && isExaminedTopicToday) || (!isExamDay && nextDayHasExam && isNextExamTopic);
-                if (allowMorningRevision && qualifiesForMorning) {  
-                    const userHasMorningSlot = availabilities.some(a => { 
-                        const slotHour = parseInt(a.start_time.split(':')[0]); 
-                        return slotHour < 12; 
-                    }); 
-                
-                    let courseKey = `${slotDateStr}_${t.course_id}`;
-                    let ignoreMinsNeededForMorning = false;
-                    let maxMorningChunk = 45;
-                    
-                    if (isExamDay) {
-                        const examsTodayCount = Math.max(1, examsOnThisDayCheck.length);
-                        // Divide equally if multiple courses
-                        maxMorningChunk = Math.floor(45 / examsTodayCount);
-                        ignoreMinsNeededForMorning = true; // Use the block entirely for this course's first topic
-                    }
-
-                    // Only assign morning block if this course hasn't already got one today
-                    if (!courseMorningAssigned[courseKey]) {
-                        let assignedMins = 0;
-                        
-                        if (userHasMorningSlot) { 
-                            const slotHour = parseInt(slot.start_time.split(':')[0]); 
-                            if (slotHour < 12 && dailyMinsUsed < maxMinutesToday) { 
-                                // Determine session length
-                                let possibleLength = Math.min(maxMorningChunk, getDiffMins(slot.start_time, slot.end_time), maxMinutesToday - dailyMinsUsed);
-                                if (!ignoreMinsNeededForMorning) possibleLength = Math.min(possibleLength, minsNeeded);
-                                
-                                if (possibleLength >= 15) {
-                                    sessionData.push({ 
-                                        study_plan_id: studyPlan.id, 
-                                        user_topic_id: t.id, 
-                                        session_date: slot.exactDate, 
-                                        day_of_week: slot.day_of_week,
-                                        start_time: slot.start_time, 
-                                        end_time: addMinutes(slot.start_time, possibleLength), 
-                                        duration_minutes: possibleLength, 
-                                        allocated_hours: parseFloat((possibleLength / 60).toFixed(2)),
-                                        break_after: true, 
-                                        session_type: "REVISION", 
-                                        is_morning: true 
-                                    }); 
-                    
-                                    dailyMinsUsed += possibleLength; 
-                                    assignedMins = possibleLength; 
-                                    minsNeeded -= possibleLength;
-                                    
-                                    slot.current_time = addMinutes(slot.start_time, possibleLength + 5);
-                                }
-                            } 
-                        } else {
-                            // If no morning slot exists, add a forced one
-                            if (dailyMinsUsed < 45) { 
-                                let possibleLength = Math.min(maxMorningChunk, maxMinutesToday - dailyMinsUsed);
-                                if (!ignoreMinsNeededForMorning) possibleLength = Math.min(possibleLength, minsNeeded);
-                                
-                                if (possibleLength >= 15) { 
-                                    let startTime = morningRevisionCurrentTime[slotDateStr] || "07:00";
-                            
-                                    sessionData.push({ 
-                                        study_plan_id: studyPlan.id, 
-                                        user_topic_id: t.id, 
-                                        session_date: slot.exactDate, 
-                                        day_of_week: slot.day_of_week,
-                                        start_time: startTime, 
-                                        end_time: addMinutes(startTime, possibleLength), 
-                                        duration_minutes: possibleLength, 
-                                        allocated_hours: parseFloat((possibleLength / 60).toFixed(2)),
-                                        break_after: true, 
-                                        session_type: "REVISION", 
-                                        is_morning: true 
-                                    }); 
-                            
-                                    dailyMinsUsed += possibleLength; 
-                                    assignedMins = possibleLength;
-                                    minsNeeded -= possibleLength;
-                                    morningRevisionCurrentTime[slotDateStr] = addMinutes(startTime, possibleLength + 5);
-                                } 
-                            }
-                        }
-                        
-                        if (assignedMins > 0) {
-                            courseMorningAssigned[courseKey] = true; 
-                        }
-                    }
-                } 
-                
-                if (minsNeeded <= 0) {
-                    dailyMinsUsedMap[slotDateStr] = dailyMinsUsed; 
-                    continue;
-                }
-
-                // ==================== NORMAL EVENING / FLEXIBLE SLOTS ==================== 
-                // FORCE: No sessions after the last exam on the final exam day
-                // If we have exam time, we can optionally block after exam time
-                // For now, we keep total light (60 mins max) and let the user mark completed
-
-                let slotRemainingMins = getDiffMins(slot.current_time, slot.end_time); 
-                
-                let qualifiesForEvening = true;
-                if (isExamDay) {
-                     if (isFinalExamDay) {
-                         qualifiesForEvening = isExaminedTopicToday;
-                     } else if (nextDayHasExam && !isFinalExamDay) {
-                         qualifiesForEvening = isNextExamTopic;
-                     } else {
-                         qualifiesForEvening = isExaminedTopicToday;
-                     }
-                }
-                
-                if (!qualifiesForEvening) {
-                     dailyMinsUsedMap[slotDateStr] = dailyMinsUsed; 
-                     continue;
-                }
-
+                let courseKey = `${slotDateStr}_${t.course_id}`;
                 let maxAllowedSession = 50;
-                if (isExamDay && nextDayHasExam && nextExams.length > 1 && qualifiesForEvening && isNextExamTopic) {
+
+                // Check Morning Slot overlap
+                const slotHour = parseInt(slot.current_time.split(':')[0]); 
+                let isMorningSlot = slotHour < 12;
+                let qualifiesForMorning = (isExamDay && isExaminedTopicToday) || (!isExamDay && nextDayHasExam && isNextExamTopic);
+                
+                let ignoreMinsNeededForMorning = false;
+                if (allowMorningRevision && isMorningSlot && qualifiesForMorning && !courseMorningAssigned[courseKey]) {
+                    if (isExamDay) {
+                        maxAllowedSession = Math.floor(45 / Math.max(1, examsOnThisDayCheck.length));
+                        ignoreMinsNeededForMorning = true;
+                    } else {
+                        maxAllowedSession = 45;
+                    }
+                    courseMorningAssigned[courseKey] = true;
+                } else if (isExamDay && nextDayHasExam && nextExams.length > 1 && isNextExamTopic) {
                      maxAllowedSession = Math.max(20, Math.floor((maxMinutesToday - 45) / nextExams.length));
                 }
-                
-                let forceEveningRevision = qualifiesForEvening && isNextExamTopic && nextDayHasExam;
-                let effectiveMinsNeeded = forceEveningRevision ? Math.max(minsNeeded, maxAllowedSession) : minsNeeded;
 
-                while (slotRemainingMins >= 20 && dailyMinsUsed < maxMinutesToday && effectiveMinsNeeded > 0) { 
-                    let sessionLength = Math.min(maxAllowedSession, slotRemainingMins, maxMinutesToday - dailyMinsUsed, effectiveMinsNeeded); 
-                    if (sessionLength < 20) break; 
-                
-                    let sessionType = (isFinalExamDay || isExamDay) ? "REVISION" : "LEARN"; 
-                    if (slot.isPreExamBlock) {
-                        sessionType = "REVISION";
-                    } else if (!isExamDay && nextDayHasExam) {
-                        sessionType = "REVISION";
-                    } else if (sessionType === "LEARN") {
-                        let examForTopic = dictUserCourses[t.course_id];
-                        if (examForTopic && examForTopic.exam_date && !examForTopic.is_completed) {
-                            let diffEx = (new Date(examForTopic.exam_date).getTime() - slot.exactDate.getTime()) / (1000 * 60 * 60 * 24);
-                            if (diffEx >= 0 && diffEx <= 7) {
-                                sessionType = "REVISION";
-                            }
-                        }
+                let forceEveningRevision = isNextExamTopic && nextDayHasExam;
+                let effectiveMinsNeeded = forceEveningRevision || ignoreMinsNeededForMorning ? Math.max(t.minsNeeded, maxAllowedSession) : t.minsNeeded;
+
+                let sessionLength = Math.min(maxAllowedSession, slotRemainingMins, maxMinutesToday - dailyMinsUsed, effectiveMinsNeeded); 
+                if (sessionLength < 20) break; 
+            
+                let sessionType = (isFinalExamDay || isExamDay) ? "REVISION" : "LEARN"; 
+                if (slot.isPreExamBlock || (!isExamDay && nextDayHasExam)) {
+                    sessionType = "REVISION";
+                } else if (sessionType === "LEARN") {
+                    if (courseForT && courseForT.exam_date && !courseForT.is_completed) {
+                        let diffEx = (new Date(courseForT.exam_date).getTime() - slot.exactDate.getTime()) / (1000 * 60 * 60 * 24);
+                        if (diffEx >= 0 && diffEx <= 7) sessionType = "REVISION";
                     }
+                }
+            
+                sessionData.push({ 
+                    study_plan_id: studyPlan.id, 
+                    user_topic_id: t.id, 
+                    session_date: slot.exactDate, 
+                    day_of_week: slot.day_of_week,
+                    start_time: slot.current_time, 
+                    end_time: addMinutes(slot.current_time, sessionLength), 
+                    duration_minutes: sessionLength, 
+                    allocated_hours: parseFloat((sessionLength / 60).toFixed(2)),
+                    break_after: true, 
+                    session_type: sessionType,
+                    is_morning: isMorningSlot 
+                }); 
                 
-                    sessionData.push({ 
-                        study_plan_id: studyPlan.id, 
-                        user_topic_id: t.id, 
-                        session_date: slot.exactDate, 
-                        day_of_week: slot.day_of_week,
-                        start_time: slot.current_time, 
-                        end_time: addMinutes(slot.current_time, sessionLength), 
-                        duration_minutes: sessionLength, 
-                        allocated_hours: parseFloat((sessionLength / 60).toFixed(2)),
-                        break_after: true, 
-                        session_type: sessionType,
-                        is_morning: false 
-                    }); 
-                    dailyMinsUsed += sessionLength; 
-                    minsNeeded -= sessionLength; 
-                    effectiveMinsNeeded -= sessionLength;
-                    slot.current_time = addMinutes(slot.current_time, sessionLength + 5); // break
-                    slotRemainingMins = getDiffMins(slot.current_time, slot.end_time); 
-                } 
-                
-                dailyMinsUsedMap[slotDateStr] = dailyMinsUsed;
-            }
+                dailyMinsUsed += sessionLength; 
+                t.minsNeeded -= sessionLength; 
+                slot.current_time = addMinutes(slot.current_time, sessionLength + 5); 
+                slotRemainingMins = getDiffMins(slot.current_time, slot.end_time); 
+            } 
+            
+            dailyMinsUsedMap[slotDateStr] = dailyMinsUsed;
         }
     }
 

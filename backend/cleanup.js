@@ -1,39 +1,46 @@
 const { PrismaClient } = require('@prisma/client');
 const prisma = new PrismaClient();
 
-async function removeDupes() {
-    const sessions = await prisma.studySession.findMany({
-        orderBy: { study_plan_id: 'desc' }, // Keep latest study plan sessions prioritizing them
-        include: { topic: true }
+async function cleanup() {
+    console.log("Starting cleanup...");
+    
+    // Find today midnight
+    const today = new Date();
+    today.setHours(0, 0, 0, 0);
+
+    // Delete any uncompleted study sessions that are in the past
+    // BUT were generated AFTER today midnight.
+    // Wait, the plan generated date is in study_plan.
+    // Let's just find the plans generated today.
+    const recentPlans = await prisma.studyPlan.findMany({
+        where: {
+            generated_date: { gte: today }
+        }
     });
 
-    let toDelete = [];
-    let seen = new Set();
-    
-    for (const s of sessions) {
-        if (!s.session_date) {
-            toDelete.push(s.id);
-            continue;
-        }
-
-        const dateStr = s.session_date.toISOString().split('T')[0];
-        const key = `${dateStr}_${s.start_time}_${s.day_of_week}_${s.topic.course_id}_${s.topic.id}`;
-        
-        if (seen.has(key)) {
-            if (!s.completed) {
-                // Never delete completed sessions as duplicates, preferentially delete the uncompleted counterpart if both exist,
-                // Wait! If they are both uncompleted, delete the second.
-                toDelete.push(s.id);
+    for (const plan of recentPlans) {
+        const deleted = await prisma.studySession.deleteMany({
+            where: {
+                study_plan_id: plan.id,
+                session_date: { lt: today }
             }
-        } else {
-            seen.add(key);
-        }
+        });
+        console.log(`Deleted ${deleted.count} past sessions from recent plan ${plan.id}`);
     }
-    
-    console.log(toDelete.length, 'duplicates found');
-    await prisma.studySession.deleteMany({
-        where: { id: { in: toDelete } }
+
+    // Wait, what if the user wants SEN101 back but Plan A's uncompleted sessions were deleted?
+    // Plan A's uncompleted sessions for SEN101 were NEVER deleted because userTopicIds only included SEN103 during the recalculate!
+    // Let's verify if SEN101 sessions exist.
+    const allSessions = await prisma.studySession.findMany({
+        where: { session_date: { lt: today } },
+        include: { topic: { include: { course: true } } }
     });
-    console.log('Deleted successfully');
+    const sen101 = allSessions.filter(s => s.topic.course.code === 'SEN101');
+    const sen103 = allSessions.filter(s => s.topic.course.code === 'SEN103');
+    console.log(`Remaining past sessions: SEN101: ${sen101.length}, SEN103: ${sen103.length}`);
 }
-removeDupes().then(() => process.exit(0)).catch(e => { console.error(e); process.exit(1); });
+
+cleanup()
+    .then(() => console.log("Done"))
+    .catch(console.error)
+    .finally(() => prisma.$disconnect());

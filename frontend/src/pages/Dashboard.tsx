@@ -2,7 +2,7 @@ import { useState, useEffect, useContext } from 'react';
 import axios from 'axios';
 import { useNavigate } from 'react-router-dom';
 import { AuthContext } from '../context/AuthContext';
-import { CalendarDays, BrainCircuit, RefreshCw, X, List, User as UserIcon, Activity, ChevronDown, Settings, LogOut, AlertTriangle, BookOpen } from 'lucide-react';
+import { CalendarDays, BrainCircuit, RefreshCw, X, List, User as UserIcon, Activity, ChevronDown, Settings, LogOut, AlertTriangle, BookOpen, Clock } from 'lucide-react';
 import confetti from 'canvas-confetti';
 import SummaryCards from '../components/SummaryCards';
 import RightSidebar from '../components/RightSidebar';
@@ -15,6 +15,7 @@ export default function Dashboard() {
     const [stats, setStats] = useState<any>(null);
     const [plan, setPlan] = useState<any>(null);
     const [courses, setCourses] = useState<any[]>([]);
+    const [academicStatus, setAcademicStatus] = useState<any>(null);
     const [loading, setLoading] = useState(true);
     const [isRecalculating, setIsRecalculating] = useState(false);
     const [selectedDate, setSelectedDate] = useState(new Date());
@@ -27,6 +28,8 @@ export default function Dashboard() {
     const [planNotification, setPlanNotification] = useState<string | null>(null);
     const [examDrafts, setExamDrafts] = useState<Record<string, any>>({});
     const [isSettingsModalOpen, setIsSettingsModalOpen] = useState(false);
+    const [isStudyTimeModalOpen, setIsStudyTimeModalOpen] = useState(false);
+    const [globalTime, setGlobalTime] = useState({ start_time: '08:00', end_time: '12:00' });
     const [studyPref, setStudyPref] = useState(user?.post_exam_preference || 'REST');
     const [allowMorningRevision, setAllowMorningRevision] = useState(user?.allow_morning_revision || false);
 
@@ -88,15 +91,25 @@ export default function Dashboard() {
     const fetchDashboardData = async () => {
         setLoading(true);
         try {
-            const [statsRes, planRes, coursesRes, topicsRes] = await Promise.all([
+            const [statsRes, planRes, coursesRes, topicsRes, academicStatusRes, availabilityRes] = await Promise.all([
                 axios.get('/api/progress/dashboard'),
                 axios.get('/api/plan/current').catch(() => ({ data: null })),
                 axios.get('/api/courses'),
-                axios.get('/api/topics')
+                axios.get('/api/topics'),
+                axios.get('/api/academic/status'),
+                axios.get('/api/availability')
             ]);
             setStats(statsRes.data);
             setPlan(planRes.data);
             setCourses(coursesRes.data);
+            setAcademicStatus(academicStatusRes.data);
+
+            if (availabilityRes.data && availabilityRes.data.length > 0) {
+                setGlobalTime({
+                    start_time: availabilityRes.data[0].start_time,
+                    end_time: availabilityRes.data[0].end_time
+                });
+            }
 
             // Neuro Insight deactivated per requirement 
             // axios.get('/api/ai/motivation')
@@ -134,6 +147,17 @@ export default function Dashboard() {
             alert("Failed to recalculate plan");
         } finally {
             setIsRecalculating(false);
+        }
+    };
+
+    const handleProgressSemester = async () => {
+        try {
+            await axios.post('/api/academic/progress');
+            confetti({ particleCount: 150, spread: 70, origin: { y: 0.6 } });
+            if (reloadUser) await reloadUser();
+            navigate('/onboarding');
+        } catch (e) {
+            alert("Failed to progress to next semester");
         }
     };
 
@@ -193,6 +217,21 @@ export default function Dashboard() {
             await handleRecalculate();
         } catch(e) {
             alert("Failed to save settings");
+        }
+    };
+
+    const handleSaveStudyTime = async () => {
+        try {
+            const availabilities = ['Mon', 'Tue', 'Wed', 'Thu', 'Fri', 'Sat', 'Sun'].map(day => ({
+                day_of_week: day,
+                start_time: globalTime.start_time,
+                end_time: globalTime.end_time
+            }));
+            await axios.post('/api/availability', { availabilities });
+            setIsStudyTimeModalOpen(false);
+            await handleRecalculate();
+        } catch (e) {
+            alert("Failed to save study time");
         }
     };
 
@@ -267,6 +306,26 @@ export default function Dashboard() {
                                                 Profile Settings
                                             </button>
                                             <button 
+                                                onClick={() => {
+                                                    setIsProfileMenuOpen(false);
+                                                    openBulkModal();
+                                                }}
+                                                className="flex w-full items-center px-4 py-2.5 text-sm font-medium text-gray-700 hover:bg-gray-50 transition-colors hover:text-indigo-600 cursor-pointer"
+                                            >
+                                                <CalendarDays className="w-4 h-4 mr-2" />
+                                                Manage Exam Dates
+                                            </button>
+                                            <button 
+                                                onClick={() => {
+                                                    setIsProfileMenuOpen(false);
+                                                    setIsStudyTimeModalOpen(true);
+                                                }}
+                                                className="flex w-full items-center px-4 py-2.5 text-sm font-medium text-gray-700 hover:bg-gray-50 transition-colors hover:text-indigo-600 cursor-pointer"
+                                            >
+                                                <Clock className="w-4 h-4 mr-2" />
+                                                Manage Study Time
+                                            </button>
+                                            <button 
                                                 onClick={() => navigate('/history')}
                                                 className="flex w-full items-center px-4 py-2.5 text-sm font-medium text-gray-700 hover:bg-gray-50 transition-colors hover:text-indigo-600 cursor-pointer"
                                             >
@@ -321,19 +380,55 @@ export default function Dashboard() {
                             </div>
                         )}
                         <SummaryCards stats={stats} />
+
+                        {academicStatus?.isComplete && (
+                            <div className="bg-emerald-50 border border-emerald-200 rounded-2xl p-6 flex flex-col md:flex-row items-start md:items-center justify-between mt-6 shadow-sm">
+                                <div className="flex items-start md:items-center gap-4">
+                                    <div className="bg-emerald-100 p-3 rounded-xl flex-shrink-0 mt-1 md:mt-0">
+                                        <BrainCircuit className="w-8 h-8 text-emerald-600" />
+                                    </div>
+                                    <div>
+                                        <h3 className="text-xl font-bold text-emerald-900">Semester completed!</h3>
+                                        <p className="text-emerald-700 font-medium">You have finished all exams for this semester. Ready for the next one?</p>
+                                    </div>
+                                </div>
+                                <div className="flex flex-col gap-2 w-full md:w-auto mt-4 md:mt-0">
+                                    <button 
+                                       onClick={handleProgressSemester}
+                                       className="w-full text-center bg-emerald-600 text-white font-bold px-6 py-2 rounded-lg shadow hover:bg-emerald-700 transition cursor-pointer"
+                                    >
+                                        Start Next Semester
+                                    </button>
+                                </div>
+                            </div>
+                        )}
+
+                        {process.env.NODE_ENV !== 'production' && (
+                            <div className="bg-purple-50 border border-purple-200 rounded-2xl p-4 flex justify-between items-center mt-6">
+                                <span className="text-purple-800 font-bold">Dev Tool:</span>
+                                <button 
+                                    onClick={handleProgressSemester}
+                                    className="bg-purple-600 text-white font-bold px-4 py-1.5 rounded shadow hover:bg-purple-700 transition text-sm cursor-pointer"
+                                >
+                                    Force Start Next Semester (Dev Only)
+                                </button>
+                            </div>
+                        )}
+                        
                         
                         {/* Neuro Insight deactivated per requirement 
                         <AIInsight insight={stats?.aiInsight} isLoading={aiInsightLoading} /> 
                         */}
 
                         {courses.filter(c => {
-                            if (c.is_completed || !c.exam_date) return false;
+                            if (!c.exam_date) return false;
                             
                             // Adjust selectedDate to purely YYYY-MM-DD
                             const selDate = new Date(selectedDate.getTime() - (selectedDate.getTimezoneOffset() * 60000));
                             const selDateStr = selDate.toISOString().split('T')[0];
                             const examDateStr = c.exam_date.split('T')[0];
                             
+                            // Show the banner if the selected date is exactly the exam date, regardless of completion status
                             return selDateStr === examDateStr;
                         }).map(c => (
                             <div key={`exam-${c.id}`} className="bg-gradient-to-r from-red-50 to-orange-50 border border-red-200 rounded-2xl p-6 flex flex-col md:flex-row items-start md:items-center justify-between mt-6 shadow-sm">
@@ -405,20 +500,6 @@ export default function Dashboard() {
                                     </div>
                                 </div>
                                 <div className="flex gap-2 shrink-0 w-full md:w-auto justify-end">
-                                    <button
-                                        onClick={() => navigate('/onboarding', { state: { step: 3 } })}
-                                        className="flex items-center text-sm font-medium text-gray-700 bg-white border border-gray-200 px-3 py-1.5 rounded-lg hover:bg-gray-50 transition-colors shadow-sm cursor-pointer"
-                                    >
-                                        <List className="w-4 h-4 mr-1.5 text-gray-500" />
-                                        Manage Topics
-                                    </button>
-                                    <button
-                                        onClick={openBulkModal}
-                                        className="flex items-center text-sm font-medium text-gray-700 bg-white border border-gray-200 px-3 py-1.5 rounded-lg hover:bg-gray-50 transition-colors shadow-sm cursor-pointer"
-                                    >
-                                        <CalendarDays className="w-4 h-4 mr-1.5 text-gray-500" />
-                                        Manage Exam Dates
-                                    </button>
                                     <button
                                         onClick={handleRecalculate}
                                         disabled={isRecalculating}
@@ -752,6 +833,65 @@ export default function Dashboard() {
                                 className="flex-1 px-4 py-2.5 text-sm font-bold text-white bg-indigo-600 rounded-xl hover:bg-indigo-700 transition-colors shadow-sm"
                             >
                                 Save Settings
+                            </button>
+                        </div>
+                    </div>
+                </div>
+            )}
+
+            {/* Study Time Modal */}
+            {isStudyTimeModalOpen && (
+                <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-gray-900/40 backdrop-blur-sm animate-in fade-in duration-200">
+                    <div className="bg-white rounded-2xl shadow-xl w-full max-w-md overflow-hidden animate-in zoom-in-95 duration-200">
+                        <div className="flex justify-between items-center p-6 border-b border-gray-100 bg-gray-50/50">
+                            <h3 className="text-xl font-bold text-gray-900 flex items-center gap-2">
+                                <Clock className="w-5 h-5 text-indigo-600" />
+                                Manage Study Time
+                            </h3>
+                            <button onClick={() => setIsStudyTimeModalOpen(false)} className="text-gray-400 hover:text-gray-600 transition-colors">
+                                <X className="w-5 h-5" />
+                            </button>
+                        </div>
+                        
+                        <div className="p-6 space-y-4">
+                            <p className="text-sm text-gray-600 mb-4">
+                                Set your daily study availability. Your entire study plan will be automatically recalculated to fit within these updated hours.
+                            </p>
+                            
+                            <div className="grid grid-cols-2 gap-4">
+                                <div>
+                                    <label className="block text-sm font-medium text-gray-700 mb-1">Start Time</label>
+                                    <input 
+                                        type="time" 
+                                        value={globalTime.start_time} 
+                                        onChange={e => setGlobalTime({ ...globalTime, start_time: e.target.value })} 
+                                        className="block w-full rounded-xl border-gray-300 shadow-sm focus:border-indigo-500 focus:ring-indigo-500 sm:text-sm py-2 px-3 border" 
+                                    />
+                                </div>
+                                <div>
+                                    <label className="block text-sm font-medium text-gray-700 mb-1">End Time</label>
+                                    <input 
+                                        type="time" 
+                                        value={globalTime.end_time} 
+                                        onChange={e => setGlobalTime({ ...globalTime, end_time: e.target.value })} 
+                                        className="block w-full rounded-xl border-gray-300 shadow-sm focus:border-indigo-500 focus:ring-indigo-500 sm:text-sm py-2 px-3 border" 
+                                    />
+                                </div>
+                            </div>
+                        </div>
+
+                        <div className="p-6 pt-0 flex gap-3">
+                            <button
+                                onClick={() => setIsStudyTimeModalOpen(false)}
+                                className="flex-1 px-4 py-2.5 text-sm font-bold text-gray-700 bg-gray-100 rounded-xl hover:bg-gray-200 transition-colors"
+                            >
+                                Cancel
+                            </button>
+                            <button
+                                onClick={handleSaveStudyTime}
+                                className="flex-1 px-4 py-2.5 text-sm font-bold text-white bg-indigo-600 rounded-xl hover:bg-indigo-700 transition-colors shadow-sm"
+                            >
+                                Save & Recalculate
                             </button>
                         </div>
                     </div>

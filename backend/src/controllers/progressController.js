@@ -15,7 +15,7 @@ const getDashboardStats = async (req, res) => {
         todayStart.setHours(0, 0, 0, 0);
 
         const currentPlan = await prisma.studyPlan.findFirst({
-            where: { user_id },
+            where: { user_id, is_archived: false },
             orderBy: { generated_date: 'desc' }
         });
 
@@ -113,7 +113,7 @@ const getDashboardStats = async (req, res) => {
 
         // 1. Total Courses
         const courses = await prisma.userCourse.findMany({ 
-            where: { user_id, is_completed: false },
+            where: { user_id, is_archived: false },
             include: { course: true }
         });
         const totalCourses = courses.length;
@@ -133,7 +133,7 @@ const getDashboardStats = async (req, res) => {
 
         // 4. Study Progress per course (from ProgressLog)
         const progressLogs = await prisma.progressLog.findMany({
-            where: { user_id },
+            where: { user_id, is_archived: false },
             include: { userCourse: { include: { course: true } } }
         });
 
@@ -210,12 +210,12 @@ const markSessionComplete = async (req, res) => {
 
         // Resolve userCourseId from the generic course_id and user_id to update ProgressLog correctly
         const userCourse = await prisma.userCourse.findFirst({
-            where: { user_id: req.user.id, course_id: sessionToUpdate.topic.course_id }
+            where: { user_id: req.user.id, course_id: sessionToUpdate.topic.course_id, is_archived: false }
         });
 
         if (userCourse) {
             let log = await prisma.progressLog.findFirst({
-                where: { user_id: req.user.id, user_course_id: userCourse.id }
+                where: { user_id: req.user.id, user_course_id: userCourse.id, is_archived: false }
             });
 
             if (log) {
@@ -310,13 +310,17 @@ const getGlobalHistory = async (req, res) => {
 
         const timeline = [];
         for (const session of academicSessions) {
+            let sessionDateFilter = {
+                gte: session.start_date
+            };
+            if (session.end_date) {
+                sessionDateFilter.lte = session.end_date;
+            }
+
             let studySessions = await prisma.studySession.findMany({
                 where: {
                     topic: { user_id },
-                    session_date: {
-                        gte: session.start_date,
-                        lte: session.end_date
-                    }
+                    session_date: sessionDateFilter
                 },
                 include: { 
                     topic: { include: { course: true } },
@@ -364,10 +368,12 @@ const getGlobalHistory = async (req, res) => {
                 }
             });
 
+            const sessionName = `${session.level} Level - ${session.semester}`;
+
             timeline.push({
-                session_name: session.name,
+                session_name: sessionName,
                 start_date: session.start_date,
-                end_date: session.end_date,
+                end_date: session.end_date || new Date(),
                 total_hours: totalHours,
                 courses_studied: Array.from(coursesStudied).length,
                 completed_sessions_count: completedSessions.length,

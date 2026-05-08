@@ -45,9 +45,10 @@ const createProfile = async (req, res) => {
         await prisma.academicSession.create({
             data: {
                 user_id,
-                name: sessionName,
+                semester: semInt === 1 ? '1st Semester' : '2nd Semester',
+                level: parseInt(level),
                 start_date: startDate,
-                end_date: endDate
+                end_date: null
             }
         });
 

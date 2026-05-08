@@ -5,7 +5,7 @@ exports.getUserTopics = async (req, res) => {
     try {
         const userId = req.user.id;
         const topics = await prisma.userTopic.findMany({
-            where: { user_id: userId },
+            where: { user_id: userId, is_archived: false },
             include: { course: true }
         });
         res.json(topics);
@@ -78,7 +78,7 @@ exports.updateTopic = async (req, res) => {
         const { topic_name, mastery_level, is_selected } = req.body;
 
         const topic = await prisma.userTopic.findFirst({
-            where: { id, user_id: userId }
+            where: { id, user_id: userId, is_archived: false }
         });
 
         if (!topic) return res.status(404).json({ error: 'Topic not found' });
@@ -105,7 +105,7 @@ exports.deleteTopic = async (req, res) => {
         const { id } = req.params;
 
         const topic = await prisma.userTopic.findFirst({
-            where: { id, user_id: userId }
+            where: { id, user_id: userId, is_archived: false }
         });
 
         if (!topic) return res.status(404).json({ error: 'Topic not found' });

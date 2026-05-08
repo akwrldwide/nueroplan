@@ -70,7 +70,7 @@ const saveUserCourses = async (req, res) => {
 const getUserCourses = async (req, res) => {
     try {
         const courses = await prisma.userCourse.findMany({
-            where: { user_id: req.user.id },
+            where: { user_id: req.user.id, is_archived: false },
             include: { course: { include: { courseTopics: true } } }
         });
         res.json(courses);
@@ -87,7 +87,7 @@ const updateUserCourse = async (req, res) => {
 
         // Verify course belongs to user
         const course = await prisma.userCourse.findFirst({
-            where: { id, user_id: req.user.id }
+            where: { id, user_id: req.user.id, is_archived: false }
         });
 
         if (!course) {
@@ -126,7 +126,7 @@ const bulkUpdateUserCourses = async (req, res) => {
         for (const c of courses) {
             // Validate course belongs to user
             const existing = await prisma.userCourse.findFirst({
-                where: { id: c.courseId, user_id: req.user.id }
+                where: { id: c.courseId, user_id: req.user.id, is_archived: false }
             });
 
             if (!existing) continue;
@@ -167,7 +167,7 @@ const markExamCompleted = async (req, res) => {
     try {
         const { id } = req.params;
         const userCourse = await prisma.userCourse.findFirst({
-            where: { id, user_id: req.user.id }
+            where: { id, user_id: req.user.id, is_archived: false }
         });
 
         if (!userCourse) {
@@ -231,7 +231,7 @@ const editUserCourse = async (req, res) => {
         const { code, title, units, difficulty } = req.body;
         
         const userCourse = await prisma.userCourse.findFirst({
-            where: { id, user_id: req.user.id },
+            where: { id, user_id: req.user.id, is_archived: false },
             include: { course: true }
         });
 
@@ -264,7 +264,7 @@ const deleteUserCourse = async (req, res) => {
         const user_id = req.user.id;
 
         const userCourse = await prisma.userCourse.findFirst({
-            where: { id, user_id }
+            where: { id, user_id, is_archived: false }
         });
         
         if (!userCourse) return res.status(404).json({ message: 'Course not found' });

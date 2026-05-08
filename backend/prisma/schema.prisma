@@ -96,6 +96,8 @@ model UserCourse {
   course       Course        @relation(fields: [course_id], references: [id], onDelete: Cascade)
   progressLogs ProgressLog[]
 
+  is_archived  Boolean       @default(false)
+
   academicSessionId String?
   academicSession  AcademicSession? @relation(fields: [academicSessionId], references: [id])
 
@@ -105,9 +107,11 @@ model UserCourse {
 model AcademicSession {
   id            String   @id @default(uuid())
   user_id       String
-  name          String   // e.g. "2026 Session 1"
+  semester      String   @default("1st Semester")
+  level         Int      @default(100)
   start_date    DateTime
-  end_date      DateTime
+  end_date      DateTime?
+  created_at    DateTime @default(now())
 
   user          User     @relation(fields: [user_id], references: [id], onDelete: Cascade)
   userCourses   UserCourse[]
@@ -121,6 +125,7 @@ model UserTopic {
   topic_name      String // Supports custom topics where course_topic_id is null
   mastery_level   Float    @default(0) // 0-1
   is_selected     Boolean  @default(true)
+  is_archived     Boolean  @default(false)
   created_at      DateTime @default(now())
 
   user        User         @relation(fields: [user_id], references: [id], onDelete: Cascade)
@@ -146,6 +151,7 @@ model StudyPlan {
   user_id         String
   generated_date  DateTime @default(now())
   week_start_date DateTime
+  is_archived     Boolean  @default(false)
 
   user     User           @relation(fields: [user_id], references: [id], onDelete: Cascade)
   sessions StudySession[]
@@ -165,6 +171,7 @@ model StudySession {
   break_after      Boolean @default(false)
   session_type     String  @default("LEARN")
   is_morning       Boolean @default(false)
+  is_archived      Boolean @default(false)
 
   studyPlan StudyPlan @relation(fields: [study_plan_id], references: [id], onDelete: Cascade)
   topic     UserTopic @relation(fields: [user_topic_id], references: [id], onDelete: Cascade)
@@ -201,6 +208,7 @@ model ProgressLog {
   study_hours_logged   Float  @default(0)
   checklist_completion Float  @default(0) // Percentage
   consistency_score    Float  @default(1.0)
+  is_archived          Boolean @default(false)
 
   user       User       @relation(fields: [user_id], references: [id], onDelete: Cascade)
   userCourse UserCourse @relation(fields: [user_course_id], references: [id], onDelete: Cascade)
@@ -213,6 +221,7 @@ model MistakeLog {
   question       String
   correct_answer String
   given_answer   String
+  is_archived    Boolean  @default(false)
   created_at     DateTime @default(now())
 
   user      User      @relation(fields: [user_id], references: [id], onDelete: Cascade)

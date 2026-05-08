@@ -22,8 +22,24 @@ export default function DailyDetail({ date, sessions, onCompleteSession, activeT
     
     const formattedDate = format(date, 'EEEE, MMMM do');
     const totalHours = daySessions.reduce((acc: number, s: any) => acc + (s.duration_minutes || (s.allocated_hours * 60)) / 60, 0);
-    const breakCount = daySessions.filter((s: any) => s.break_after).length;
-    const breakMins = breakCount * 5;
+    
+    // Sort sessions to determine if it's the last one
+    const sortedSessions = [...daySessions].sort((a, b) => a.start_time.localeCompare(b.start_time));
+    
+    const breakMins = sortedSessions.reduce((acc: number, s: any, index: number) => {
+        // Only count breaks if it's not the last session of the block
+        // Wait, to be safe, just calculate the actual gap to the next session if there is one
+        if (index < sortedSessions.length - 1) {
+            const currentEnd = s.end_time.split(':').map(Number);
+            const nextStart = sortedSessions[index + 1].start_time.split(':').map(Number);
+            const gap = (nextStart[0] * 60 + nextStart[1]) - (currentEnd[0] * 60 + currentEnd[1]);
+            // If gap is between 1 and 20 mins, it's a cognitive break
+            if (gap > 0 && gap <= 20) {
+                return acc + gap;
+            }
+        }
+        return acc;
+    }, 0);
 
     return (
         <div className="bg-white rounded-2xl shadow-sm border border-gray-100 overflow-hidden mt-6">
@@ -63,10 +79,21 @@ export default function DailyDetail({ date, sessions, onCompleteSession, activeT
                     )
                 ) : (
                     <div className="divide-y divide-gray-50">
-                        {daySessions.map((session: any) => {
+                        {sortedSessions.map((session: any, index: number) => {
                             const displayLength = session.duration_minutes
                                 ? `${session.duration_minutes} mins`
                                 : `${session.allocated_hours.toFixed(1)} hrs`;
+
+                            // Calculate actual break duration for UI
+                            let actualBreakMins = 0;
+                            if (index < sortedSessions.length - 1) {
+                                const currentEnd = session.end_time.split(':').map(Number);
+                                const nextStart = sortedSessions[index + 1].start_time.split(':').map(Number);
+                                const gap = (nextStart[0] * 60 + nextStart[1]) - (currentEnd[0] * 60 + currentEnd[1]);
+                                if (gap > 0 && gap <= 20) {
+                                    actualBreakMins = gap;
+                                }
+                            }
 
                             return (
                                 <div key={session.id} className="group">
@@ -113,10 +140,10 @@ export default function DailyDetail({ date, sessions, onCompleteSession, activeT
                                     </div>
 
                                     {/* Micro-Break Separator */}
-                                    {session.break_after && !session.completed && (
+                                    {actualBreakMins > 0 && (
                                         <div className="flex items-center py-2 px-10 bg-blue-50/50 border-t border-b border-blue-50/50 text-blue-600/80 text-xs font-medium italic">
                                             <Clock className="w-3.5 h-3.5 mr-2" />
-                                            5 min cognitive break
+                                            {actualBreakMins} min cognitive break
                                         </div>
                                     )}
                                 </div>

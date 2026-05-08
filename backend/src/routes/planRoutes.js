@@ -105,7 +105,7 @@ router.get('/current', authMiddleware, async (req, res) => {
             orderBy: { start_date: 'desc' }
         });
         const today = new Date();
-        const isSemesterBreak = Boolean(activeSession && today > activeSession.end_date);
+        const isSemesterBreak = Boolean(activeSession && activeSession.end_date && today > activeSession.end_date);
 
         plan.sessions = allSessions;
         

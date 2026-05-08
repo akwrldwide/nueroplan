@@ -78,6 +78,25 @@ async function main() {
         { program: 'Computer Science', level: 400, semester: 1, course_code: 'CSC403', course_title: 'Cloud Computing', units: 3, default_difficulty: 4 },
         { program: 'Computer Science', level: 400, semester: 1, course_code: 'CSC404', course_title: 'Data Mining', units: 3, default_difficulty: 4 },
         { program: 'Computer Science', level: 400, semester: 1, course_code: 'CSC405', course_title: 'Entrepreneurship', units: 2, default_difficulty: 2 },
+
+        // SOFTWARE ENGINEERING
+        { program: 'Software Engineering', level: 100, semester: 1, course_code: 'SEN101', course_title: 'Introduction to Software Engineering', units: 3, default_difficulty: 3 },
+        { program: 'Software Engineering', level: 100, semester: 1, course_code: 'SEN103', course_title: 'Programming Principles', units: 3, default_difficulty: 4 },
+        { program: 'Software Engineering', level: 100, semester: 1, course_code: 'MTH101', course_title: 'Calculus I', units: 3, default_difficulty: 4 },
+        { program: 'Software Engineering', level: 100, semester: 2, course_code: 'SEN102', course_title: 'Object-Oriented Programming', units: 3, default_difficulty: 4 },
+        { program: 'Software Engineering', level: 100, semester: 2, course_code: 'SEN104', course_title: 'Web Technologies', units: 3, default_difficulty: 3 },
+        { program: 'Software Engineering', level: 200, semester: 1, course_code: 'SEN201', course_title: 'Software Requirements Engineering', units: 3, default_difficulty: 4 },
+        { program: 'Software Engineering', level: 200, semester: 2, course_code: 'SEN202', course_title: 'Software Design & Architecture', units: 3, default_difficulty: 5 },
+
+        // MECHANICAL ENGINEERING
+        { program: 'Mechanical Engineering', level: 100, semester: 1, course_code: 'MEE101', course_title: 'Introduction to Mechanical Engineering', units: 3, default_difficulty: 3 },
+        { program: 'Mechanical Engineering', level: 100, semester: 1, course_code: 'MEE103', course_title: 'Engineering Mechanics I (Statics)', units: 3, default_difficulty: 5 },
+        { program: 'Mechanical Engineering', level: 100, semester: 1, course_code: 'MTH101', course_title: 'Calculus I', units: 3, default_difficulty: 4 },
+        { program: 'Mechanical Engineering', level: 100, semester: 1, course_code: 'PHY101', course_title: 'General Physics I', units: 3, default_difficulty: 4 },
+        { program: 'Mechanical Engineering', level: 100, semester: 2, course_code: 'MEE102', course_title: 'Engineering Drawing', units: 2, default_difficulty: 4 },
+        { program: 'Mechanical Engineering', level: 100, semester: 2, course_code: 'MEE104', course_title: 'Engineering Mechanics II (Dynamics)', units: 3, default_difficulty: 5 },
+        { program: 'Mechanical Engineering', level: 200, semester: 1, course_code: 'MEE201', course_title: 'Thermodynamics I', units: 3, default_difficulty: 5 },
+        { program: 'Mechanical Engineering', level: 200, semester: 2, course_code: 'MEE202', course_title: 'Fluid Mechanics I', units: 3, default_difficulty: 5 },
     ];
 
     for (const c of courses) {

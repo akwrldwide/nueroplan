@@ -130,6 +130,16 @@ export default function Onboarding() {
                 break;
             case 'COURSES':
                 setStep(2);
+                if (courses.length === 0) {
+                    axios.get('/api/profile').then(res => {
+                        const profile = res.data;
+                        if (profile && profile.curriculum_type === 'BMAS') {
+                            axios.get(`/api/courses/curriculum?program=${profile.program}&level=${profile.level}&semester=${profile.semester}`)
+                                 .then(cRes => setCourses(cRes.data))
+                                 .catch(e => console.error(e));
+                        }
+                    }).catch(e => console.error(e));
+                }
                 break;
             case 'TOPICS':
                 setStep(3);
@@ -644,13 +654,13 @@ export default function Onboarding() {
                                     onClick={() => setAvailabilityType('Option A')}
                                     className={`px-4 py-2 rounded-xl text-sm font-medium transition-colors ${availabilityType === 'Option A' ? 'bg-indigo-600 text-white' : 'bg-gray-100 text-gray-700 hover:bg-gray-200'}`}
                                 >
-                                    Same time all days
+                                    Same Schedule Every Day
                                 </button>
                                 <button
                                     onClick={() => setAvailabilityType('Option B')}
                                     className={`px-4 py-2 rounded-xl text-sm font-medium transition-colors ${availabilityType === 'Option B' ? 'bg-indigo-600 text-white' : 'bg-gray-100 text-gray-700 hover:bg-gray-200'}`}
                                 >
-                                    Different exact days
+                                    Customize Each Day
                                 </button>
                             </div>
 

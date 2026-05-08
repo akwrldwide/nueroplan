@@ -51,7 +51,7 @@ exports.getMistakes = async (req, res) => {
     try {
         const userId = req.user.id;
         const mistakes = await prisma.mistakeLog.findMany({
-            where: { user_id: userId },
+            where: { user_id: userId, is_archived: false },
             include: {
                 userTopic: {
                     include: { course: true }
