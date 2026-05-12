@@ -9,6 +9,7 @@ interface User {
     onboarding_stage: string;
     allow_morning_revision?: boolean;
     post_exam_preference?: string;
+    preferred_focus_window?: string;
     academicProfile?: any;
 }
 
