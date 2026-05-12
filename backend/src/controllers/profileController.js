@@ -106,18 +106,20 @@ const updateProfile = async (req, res) => {
 
 const updateUserSettings = async (req, res) => {
     try {
-        const { post_exam_preference, allow_morning_revision } = req.body;
+        const { post_exam_preference, allow_morning_revision, preferred_focus_window } = req.body;
         const user = await prisma.user.update({
             where: { id: req.user.id },
             data: { 
                 post_exam_preference: post_exam_preference !== undefined ? post_exam_preference : undefined,
-                allow_morning_revision: allow_morning_revision !== undefined ? allow_morning_revision : undefined
+                allow_morning_revision: allow_morning_revision !== undefined ? allow_morning_revision : undefined,
+                preferred_focus_window: preferred_focus_window !== undefined ? preferred_focus_window : undefined
             }
         });
         res.json({ 
             message: 'Settings updated successfully', 
             post_exam_preference: user.post_exam_preference,
-            allow_morning_revision: user.allow_morning_revision
+            allow_morning_revision: user.allow_morning_revision,
+            preferred_focus_window: user.preferred_focus_window
         });
     } catch (error) {
         console.error(error);

@@ -30,13 +30,15 @@ export default function Dashboard() {
     const [isSettingsModalOpen, setIsSettingsModalOpen] = useState(false);
     const [isStudyTimeModalOpen, setIsStudyTimeModalOpen] = useState(false);
     const [globalTime, setGlobalTime] = useState({ start_time: '08:00', end_time: '12:00' });
-    const [studyPref, setStudyPref] = useState(user?.post_exam_preference || 'REST');
+    const [studyPref, setStudyPref] = useState(user?.post_exam_preference || 'OFF');
     const [allowMorningRevision, setAllowMorningRevision] = useState(user?.allow_morning_revision || false);
+    const [preferredFocusWindow, setPreferredFocusWindow] = useState(user?.preferred_focus_window || 'ANY');
 
     useEffect(() => {
         if (user) {
-            setStudyPref(user.post_exam_preference || 'REST');
+            setStudyPref(user.post_exam_preference || 'OFF');
             setAllowMorningRevision(user.allow_morning_revision || false);
+            setPreferredFocusWindow(user.preferred_focus_window || 'ANY');
         }
     }, [user]);
 
@@ -210,7 +212,8 @@ export default function Dashboard() {
         try {
             await axios.put('/api/profile/settings', { 
                 post_exam_preference: studyPref,
-                allow_morning_revision: allowMorningRevision
+                allow_morning_revision: allowMorningRevision,
+                preferred_focus_window: preferredFocusWindow
             });
             if (reloadUser) await reloadUser();
             setIsSettingsModalOpen(false);
@@ -795,17 +798,17 @@ export default function Dashboard() {
                                     value={studyPref}
                                     onChange={(e) => setStudyPref(e.target.value)}
                                 >
-                                    <option value="REST">Take the day off (Recommended)</option>
-                                    <option value="LIGHT_REVISION">Light revision (Max 1.5 hrs of practice)</option>
-                                    <option value="FULL_STUDY">Full study as normal</option>
+                                    <option value="OFF">Take the day off (Recommended)</option>
+                                    <option value="LIGHT">Light revision (Max 1.5 hrs of practice)</option>
+                                    <option value="FULL">Full study as normal</option>
                                 </select>
                             </div>
                             
                             <div className="flex items-center justify-between bg-gray-50 p-4 rounded-xl border border-gray-100 mt-4">
                                 <div>
-                                    <p className="font-medium text-sm text-gray-900">Allow morning revision on exam days</p>
+                                    <p className="font-medium text-sm text-gray-900">Allow pre-exam revision</p>
                                     <p className="text-xs text-gray-600 mt-1">
-                                        Enable a short session (07:00 AM) before exams.<br />
+                                        Schedule short sessions before exams when time is available.<br />
                                         <span className="text-amber-600 font-medium">Only recommended if you wake up early.</span>
                                     </p>
                                 </div>
@@ -818,6 +821,21 @@ export default function Dashboard() {
                                     />
                                     <div className="w-11 h-6 bg-gray-200 peer-focus:outline-none peer-focus:ring-2 peer-focus:ring-indigo-300 rounded-full peer peer-checked:after:translate-x-full peer-checked:after:border-white after:content-[''] after:absolute after:top-[2px] after:left-[2px] after:bg-white after:border-gray-300 after:border after:rounded-full after:h-5 after:w-5 after:transition-all peer-checked:bg-indigo-600"></div>
                                 </label>
+                            </div>
+
+                            <div className="mt-4">
+                                <label className="block text-sm font-medium text-gray-700 mb-1">Preferred Focus Window (Optional)</label>
+                                <p className="text-xs text-gray-500 mb-3">Prioritize scheduling study sessions during specific times of the day.</p>
+                                <select 
+                                    className="w-full border-gray-300 rounded-lg shadow-sm focus:ring-indigo-500 focus:border-indigo-500 sm:text-sm py-2 px-3 border"
+                                    value={preferredFocusWindow}
+                                    onChange={(e) => setPreferredFocusWindow(e.target.value)}
+                                >
+                                    <option value="ANY">No Preference</option>
+                                    <option value="early">Early (Before 12 PM)</option>
+                                    <option value="mid">Mid (12 PM - 5 PM)</option>
+                                    <option value="late">Late (After 5 PM)</option>
+                                </select>
                             </div>
                         </div>
 

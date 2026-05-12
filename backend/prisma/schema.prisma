@@ -21,6 +21,7 @@ model User {
   streak_last_updated DateTime?
   post_exam_preference String @default("REST")
   allow_morning_revision Boolean @default(false)
+  preferred_focus_window String @default("ANY")
 
   academicProfile AcademicProfile?
   userCourses     UserCourse[]

@@ -1,9 +1,16 @@
-const { calculateTopicPriority } = require('./priorityEngine');
-const { calculateRiskFactor } = require('./riskEngine');
-const { PrismaClient } = require('@prisma/client');
-const prisma = new PrismaClient();
+import re
 
+with open('c:/Users/runsa/OneDrive/Documents/my_fyp/nuero_plan_app/backend/src/services/allocationEngine.js', 'r') as f:
+    content = f.read()
 
+# Replace variables at the top
+content = content.replace(
+    'const postExamPref = userObj.post_exam_preference || "REST";\n    const allowMorningRevision = userObj.allow_morning_revision || false;',
+    'const studyAfterExamMode = userObj.post_exam_preference || "OFF";\n    const allowPreExamRevision = userObj.allow_morning_revision || false;\n    const preferredFocusWindow = userObj.preferred_focus_window || "ANY";'
+)
+
+# Replace the utility functions
+utils = """
 function subtractIntervals(availabilitySlots, examSlots) {
     let result = [];
     for (let slot of availabilitySlots) {
@@ -43,259 +50,16 @@ function scoreSlot(slot, preference) {
     if (preference === "mid" && hour >= 12 && hour < 17) return 2;
     return 1;
 }
+"""
+content = content.replace('function getDayMinutes', utils + '\nfunction getDayMinutes')
 
-function getDayMinutes(availabilityArr) {
-    return availabilityArr.reduce((total, slot) => {
-        const [startH, startM] = slot.start_time.split(':').map(Number);
-        const [endH, endM] = slot.end_time.split(':').map(Number);
-        return total + ((endH * 60 + endM) - (startH * 60 + startM));
-    }, 0);
-}
+# We need to replace the entire chunk inside the `for (let w = 0; w < totalWeeks; w++) {` loop.
+# Let's use regex or just split the file.
+parts = content.split('        // Punch holes for exams + handle post-exam preference')
+header = parts[0]
+footer = parts[1].split('    if (sessionData.length > 0) {')[1]
 
-async function generateStudyPlan(user_id, fullRecalculate = false, forceFullSemester = false) {
-    const profile = await prisma.academicProfile.findUnique({ where: { user_id } });
-    if (!profile) throw new Error("Academic Profile missing");
-
-    const userObj = await prisma.user.findUnique({ where: { id: user_id } });
-    if (!userObj) throw new Error("User missing");
-    
-    const studyAfterExamMode = userObj.post_exam_preference || "OFF";
-    const allowPreExamRevision = userObj.allow_morning_revision || false;
-    const preferredFocusWindow = userObj.preferred_focus_window || "ANY";
-    const currentSemester = profile.semester;
-
-    const selectedTopics = await prisma.userTopic.findMany({
-        where: { 
-            user_id, 
-            is_selected: true,
-            is_archived: false,
-            course: { semester: currentSemester }
-        },
-        include: { course: true }
-    });
-    if (selectedTopics.length === 0) throw new Error("No topics selected for study this semester");
-
-    const availabilities = await prisma.studyAvailability.findMany({ where: { user_id } });
-    if (availabilities.length === 0) throw new Error("No study availability set");
-
-    const totalMinutes = getDayMinutes(availabilities);
-    const totalAvailableWeeklyHours = totalMinutes / 60;
-    if (totalAvailableWeeklyHours <= 0) throw new Error("Available hours must be greater than 0");
-
-    const userCourses = await prisma.userCourse.findMany({ 
-        where: { user_id, is_archived: false, course: { semester: currentSemester } },
-        include: { course: true }
-    });
-    const dictUserCourses = {};
-    let upcomingExams = 0;
-    const today = new Date();
-    const todayMidnight = new Date(today.getFullYear(), today.getMonth(), today.getDate());
-
-    const activeSession = await prisma.academicSession.findFirst({
-        where: { user_id },
-        orderBy: { start_date: 'desc' }
-    });
-
-    if (activeSession && activeSession.end_date && today > activeSession.end_date) {
-        return {
-            id: 'ended',
-            sessions: [],
-            totalWeeksGenerated: 0,
-            sessionsCreated: 0,
-            notification: "Semester has ended. No study sessions scheduled. View Global History?"
-        };
-    }
-
-    let latestExamDate = null;
-
-    // === AUTO-COMPLETION OF PAST EXAMS ===
-    for (const uc of userCourses) {
-        if (uc.exam_date && !uc.is_completed) {
-            const examDateOnly = new Date(uc.exam_date.getFullYear(), uc.exam_date.getMonth(), uc.exam_date.getDate());
-            if (examDateOnly < todayMidnight) {
-                await prisma.userCourse.update({
-                    where: { id: uc.id },
-                    data: { is_completed: true }
-                });
-                uc.is_completed = true;
-            }
-        }
-        
-        dictUserCourses[uc.course_id] = uc;
-
-        if (uc.exam_date && !uc.is_completed) {
-            const diffDays = (new Date(uc.exam_date).getTime() - today.getTime()) / (1000 * 60 * 60 * 24);
-            if (diffDays >= 0 && diffDays <= 7) upcomingExams++;
-
-            if (!latestExamDate || new Date(uc.exam_date) > latestExamDate) {
-                latestExamDate = new Date(uc.exam_date);
-            }
-        }
-    }
-
-    // Detect consecutive exams
-    const activeExams = userCourses
-        .filter(uc => uc.exam_date && !uc.is_completed)
-        .map(uc => new Date(uc.exam_date.getFullYear(), uc.exam_date.getMonth(), uc.exam_date.getDate()).getTime())
-        .sort((a, b) => a - b);
-
-    let hasConsecutiveExams = false;
-    for (let i = 0; i < activeExams.length - 1; i++) {
-        if (activeExams[i + 1] - activeExams[i] === 86400000) { // exactly 1 day apart
-            hasConsecutiveExams = true;
-        }
-    }
-
-    let totalWeeks = 16;
-    
-    // Step 1: Always anchor to semester start
-    const planStartDate = activeSession ? activeSession.start_date : today;
-    
-    // Step 2: Determine planning horizon
-    let effectiveEndDate = null;
-    if (latestExamDate) {
-        // Case B: Exams exist
-        effectiveEndDate = new Date(latestExamDate);
-    } else if (activeSession && activeSession.end_date) {
-        // Case A: End date explicitly provided (e.g., archived session)
-        effectiveEndDate = new Date(activeSession.end_date);
-    } else if (activeSession && !activeSession.end_date) {
-        // Case C: Active session, infer end date from semester window
-        const currentYear = new Date(activeSession.start_date).getFullYear();
-        if (activeSession.semester === '1st Semester') {
-            effectiveEndDate = new Date(currentYear, 5, 30); // June 30
-        } else {
-            effectiveEndDate = new Date(currentYear, 11, 31); // Dec 31
-        }
-    } else {
-        effectiveEndDate = new Date(planStartDate);
-        effectiveEndDate.setDate(effectiveEndDate.getDate() + (16 * 7)); // Fallback
-    }
-
-    effectiveEndDate.setHours(23, 59, 59, 999);
-    
-    const diffDays = Math.ceil((effectiveEndDate.getTime() - planStartDate.getTime()) / (1000 * 60 * 60 * 24));
-    totalWeeks = Math.max(1, Math.ceil(diffDays / 7));
-
-    if (totalWeeks > 24) totalWeeks = 24; // Sanity cap
-
-    const isExamCluster = upcomingExams >= 3;
-
-    const progressLogs = await prisma.progressLog.findMany({ where: { user_id, is_archived: false } });
-    const dictProgressLogs = {};
-    for (const p of progressLogs) {
-        dictProgressLogs[p.user_course_id] = p;
-    }
-
-    const quizResults = await prisma.quizResult.findMany({ where: { user_id } });
-    const dictQuizSum = {};
-    const dictQuizCount = {};
-    for (const q of quizResults) {
-        let key = q.topic_name || q.course_id;
-        if (!key) continue;
-        if (!dictQuizSum[key]) dictQuizSum[key] = 0;
-        if (!dictQuizCount[key]) dictQuizCount[key] = 0;
-        dictQuizSum[key] += q.score_percentage / 100;
-        dictQuizCount[key] += 1;
-    }
-
-    // Build prioritized topics (skip completed courses)
-    let topicsWithPriority = [];
-    let totalPriority = 0;
-
-    for (const t of selectedTopics) {
-        const uc = dictUserCourses[t.course_id];
-        if (uc?.is_completed) continue;
-
-        let topicQuizAvg = dictQuizCount[t.topic_name] ? dictQuizSum[t.topic_name] / dictQuizCount[t.topic_name] : null;
-        if (topicQuizAvg === null && dictQuizCount[t.course_id]) {
-            topicQuizAvg = dictQuizSum[t.course_id] / dictQuizCount[t.course_id];
-        }
-
-        const consistency = dictProgressLogs[uc.id] ? dictProgressLogs[uc.id].consistency_score : null;
-        const riskFactor = calculateRiskFactor(topicQuizAvg, consistency);
-        
-        const units = t.course?.units || 3;
-        const unitWeight = Math.min(units / 6, 1.0); // normalize assuming 6 is max
-
-        const priority = calculateTopicPriority(t, uc, profile, riskFactor, unitWeight, isExamCluster);
-        topicsWithPriority.push({ ...t, priority });
-        totalPriority += priority;
-    }
-
-    for (let t of topicsWithPriority) {
-        t.allocatedHours = totalPriority > 0
-            ? (t.priority / totalPriority) * totalAvailableWeeklyHours
-            : totalAvailableWeeklyHours / topicsWithPriority.length;
-        if (t.allocatedHours < 0.25) t.allocatedHours = 0.25;
-    }
-
-    const userTopicIds = topicsWithPriority.map(t => t.id);
-
-    // Delete future/current uncompleted sessions for recalculation to prevent duplicate pileups.
-    // We preserve past uncompleted sessions (history) by using todayMidnight as the boundary.
-    if (fullRecalculate) {
-        const boundaryDate = new Date(todayMidnight);
-        boundaryDate.setHours(0, 0, 0, 0);
-        
-        await prisma.studySession.deleteMany({
-            where: {
-                user_topic_id: { in: userTopicIds },
-                completed: false,
-                session_date: { gte: boundaryDate }
-            }
-        });
-    }
-
-    const studyPlan = await prisma.studyPlan.create({
-        data: { user_id, week_start_date: planStartDate }
-    });
-
-    let sessionData = [];
-
-    const addMinutes = (timeStr, mins) => {
-        let [h, m] = timeStr.split(':').map(Number);
-        m += mins;
-        h += Math.floor(m / 60);
-        m = m % 60;
-        return `${String(h).padStart(2, '0')}:${String(m).padStart(2, '0')}`;
-    };
-
-    const getDiffMins = (startStr, endStr) => {
-        const [sH, sM] = startStr.split(':').map(Number);
-        const [eH, eM] = endStr.split(':').map(Number);
-        return (eH * 60 + eM) - (sH * 60 + sM);
-    };
-
-    const getExactDateForDayName = (start, dayName) => {
-        const daysMap = { 'Mon': 0, 'Tue': 1, 'Wed': 2, 'Thu': 3, 'Fri': 4, 'Sat': 5, 'Sun': 6 };
-        const result = new Date(start);
-        result.setDate(result.getDate() + (daysMap[dayName] || 0));
-        result.setHours(12, 0, 0, 0); // Noon to avoid timezone shift
-        return result;
-    };
-
-    const dayOfWeek = planStartDate.getDay(); 
-    const diff = planStartDate.getDate() - dayOfWeek + (dayOfWeek === 0 ? -6 : 1);
-    const weekStartAnchor = new Date(planStartDate);
-    weekStartAnchor.setDate(diff);
-    weekStartAnchor.setHours(0,0,0,0);
-
-    for (let w = 0; w < totalWeeks; w++) {
-        let currentWeekStart = new Date(weekStartAnchor);
-        currentWeekStart.setDate(currentWeekStart.getDate() + (w * 7));
-
-        let availableSlots = availabilities.map(a => {
-            const exactDate = getExactDateForDayName(currentWeekStart, a.day_of_week);
-            return {
-                ...a,
-                current_time: a.start_time,
-                totalMins: getDiffMins(a.start_time, a.end_time),
-                exactDate: exactDate
-            };
-        });
-
-
+new_loop_body = """
         // Punch holes for exams + handle post-exam preference
         let processedSlots = [];
         for (const slot of availableSlots) {
@@ -306,20 +70,13 @@ async function generateStudyPlan(user_id, fullRecalculate = false, forceFullSeme
             let slotEndMinutes = slot.end_time.split(':').map(Number)[0] * 60 + slot.end_time.split(':').map(Number)[1];
             
             if (examsOnThisDay.length > 0) {
-                // Apply LIGHT mode consistently if there's an exam tomorrow
+                // Apply LIGHT mode consistently if hasConsecutiveExams
                 let currentMode = studyAfterExamMode;
                 if (currentMode === "REST") currentMode = "OFF";
                 if (currentMode === "LIGHT_REVISION") currentMode = "LIGHT";
                 if (currentMode === "FULL_STUDY") currentMode = "FULL";
                 
-                let localNextDayHasExam = false;
-                for (const uc of userCourses) {
-                     if (uc.exam_date && !uc.is_completed) {
-                         const diff = (new Date(uc.exam_date).getTime() - slot.exactDate.getTime()) / (1000 * 60 * 60 * 24);
-                         if (diff > 0 && diff <= 1) localNextDayHasExam = true;
-                     }
-                }
-                if (localNextDayHasExam) currentMode = "LIGHT";
+                if (hasConsecutiveExams) currentMode = "LIGHT";
                 
                 if (currentMode === "OFF") {
                     // Do not generate any sessions for that day
@@ -427,7 +184,7 @@ async function generateStudyPlan(user_id, fullRecalculate = false, forceFullSeme
             if (currentMode === "REST") currentMode = "OFF";
             if (currentMode === "LIGHT_REVISION") currentMode = "LIGHT";
             if (currentMode === "FULL_STUDY") currentMode = "FULL";
-            if (nextDayHasExam) currentMode = "LIGHT";
+            if (hasConsecutiveExams) currentMode = "LIGHT";
 
             let maxMinutesToday = 180; 
             if (isExamDay) {
@@ -445,9 +202,8 @@ async function generateStudyPlan(user_id, fullRecalculate = false, forceFullSeme
                     let courseForT = t.courseForT;
                     
                     if (courseForT && courseForT.exam_date) {
-                        const slotDateStr = slot.exactDate.toISOString().split('T')[0];
-                        const examDateStr = courseForT.exam_date.toISOString().split('T')[0];
-                        if (slotDateStr > examDateStr) {
+                        const examDateOnly = new Date(courseForT.exam_date.getFullYear(), courseForT.exam_date.getMonth(), courseForT.exam_date.getDate());
+                        if (slot.exactDate > examDateOnly) {
                             t.minsNeeded = 0; 
                             return false;
                         }
@@ -456,16 +212,20 @@ async function generateStudyPlan(user_id, fullRecalculate = false, forceFullSeme
                     let isExaminedTopicToday = isExamDay && examsOnThisDayCheck.some(uc => uc.course_id === t.course_id);
                     let isNextExamTopic = nextExams.some(nx => nx.course_id === t.course_id);
 
+                    if (isExamDay && !isExaminedTopicToday && !isNextExamTopic) return false; 
                     if (slot.isPreExamBlock && slot.preExamCourseId !== t.course_id) return false;
                     
+                    let qualifiesForEvening = true;
                     if (isExamDay) {
-                        if (slot.isPreExamBlock) {
-                            if (!isExaminedTopicToday) return false;
-                        } else {
-                            if (isFinalExamDay) return false;
-                            if (!isNextExamTopic) return false;
-                        }
+                         if (isFinalExamDay) {
+                             qualifiesForEvening = isExaminedTopicToday;
+                         } else if (nextDayHasExam && !isFinalExamDay) {
+                             qualifiesForEvening = isNextExamTopic;
+                         } else {
+                             qualifiesForEvening = isExaminedTopicToday;
+                         }
                     }
+                    if (!qualifiesForEvening) return false;
                     
                     return true;
                 });
@@ -549,37 +309,10 @@ async function generateStudyPlan(user_id, fullRecalculate = false, forceFullSeme
             dailyMinsUsedMap[slotDateStr] = dailyMinsUsed;
         }
     }
+
     if (sessionData.length > 0) {
-        await prisma.studySession.createMany({ data: sessionData });
-    }
+"""
 
-    let notification = null;
-    if (hasConsecutiveExams && (studyAfterExamMode === "OFF" || studyAfterExamMode === "REST")) {
-        notification = "Consecutive exams detected. Light morning revision (max 45 mins) scheduled before the next exam. Rest of each exam day is kept free for recovery.";
-    }
+with open('c:/Users/runsa/OneDrive/Documents/my_fyp/nuero_plan_app/backend/scratch_allocationEngine.js', 'w') as f:
+    f.write(header + new_loop_body + footer)
 
-    return { 
-        ...studyPlan,
-        totalWeeksGenerated: totalWeeks,
-        sessionsCreated: sessionData.length,
-        notification
-    };
-}
-
-async function markExamWritten(user_id, course_id) {
-    const userCourse = await prisma.userCourse.findFirst({
-        where: { user_id, course_id }
-    });
-
-    if (!userCourse) throw new Error("Course not found for user");
-
-    await prisma.userCourse.update({
-        where: { id: userCourse.id },
-        data: { is_completed: true, completed_at: new Date() }
-    });
-
-    // Automatically regenerate the plan after marking exam as written
-    return await generateStudyPlan(user_id);
-}
-
-module.exports = { generateStudyPlan, markExamWritten };

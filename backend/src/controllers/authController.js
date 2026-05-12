@@ -61,6 +61,9 @@ const login = async (req, res) => {
                 name: user.name,
                 email: user.email,
                 onboarding_stage: user.onboarding_stage,
+                post_exam_preference: user.post_exam_preference,
+                allow_morning_revision: user.allow_morning_revision,
+                preferred_focus_window: user.preferred_focus_window,
                 academicProfile: user.academicProfile
             }
         });
@@ -74,7 +77,16 @@ const getMe = async (req, res) => {
     try {
         const user = await prisma.user.findUnique({
             where: { id: req.user.id },
-            select: { id: true, name: true, email: true, onboarding_stage: true, academicProfile: true }
+            select: { 
+                id: true, 
+                name: true, 
+                email: true, 
+                onboarding_stage: true, 
+                post_exam_preference: true,
+                allow_morning_revision: true,
+                preferred_focus_window: true,
+                academicProfile: true 
+            }
         });
         if (!user) {
             return res.status(404).json({ message: 'User not found' });
