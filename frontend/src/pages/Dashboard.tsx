@@ -282,7 +282,7 @@ export default function Dashboard() {
                                 </button>
 
                                 {isProfileMenuOpen && (
-                                    <div className="absolute right-0 top-full mt-2 w-60 bg-white rounded-xl shadow-[0_4px_20px_-4px_rgba(0,0,0,0.1)] border border-gray-100 overflow-hidden z-50 animate-in fade-in slide-in-from-top-2 duration-200">
+                                    <div className="absolute right-0 top-full mt-2 w-56 sm:w-60 bg-white rounded-xl shadow-[0_4px_20px_-4px_rgba(0,0,0,0.1)] border border-gray-100 overflow-hidden z-50 animate-in fade-in slide-in-from-top-2 duration-200">
                                         <div className="py-1 whitespace-nowrap">
                                             <button 
                                                 onClick={() => navigate('/courses')}
@@ -476,40 +476,53 @@ export default function Dashboard() {
 
                         {/* Study Plan Header Section */}
                         <div className="bg-white rounded-2xl shadow-sm border border-gray-100 mt-6">
-                            <div className="px-6 py-4 flex flex-col md:flex-row justify-between items-start md:items-center bg-gray-50/50 gap-4 border-b border-gray-100 rounded-t-2xl">
-                                <div className="flex items-center gap-4 w-full md:w-auto overflow-x-auto pb-1 md:pb-0">
-                                    <h3 className="text-lg font-bold text-gray-900 leading-none shrink-0 border-r border-gray-300 pr-4">Study Plan</h3>
-                                    <div className="flex bg-gray-200/60 p-1 rounded-lg shrink-0">
-                                        <button 
-                                            onClick={() => {
-                                                setActiveTab('FUTURE');
-                                                setSelectedDate(new Date());
-                                            }}
-                                            className={`px-3 py-1.5 text-sm font-semibold rounded-md transition-all cursor-pointer ${activeTab === 'FUTURE' ? 'bg-white text-indigo-700 shadow-sm' : 'text-gray-500 hover:text-gray-700'}`}
+                            <div className="px-4 sm:px-6 py-4 flex flex-col md:flex-row justify-between items-start md:items-center bg-gray-50/50 gap-4 border-b border-gray-100 rounded-t-2xl">
+                                <div className="flex w-full md:w-auto items-center justify-between">
+                                    <h3 className="text-lg font-bold text-gray-900 leading-none shrink-0 md:border-r md:border-gray-300 md:pr-4">Study Plan</h3>
+                                    {/* Mobile Refresh Button */}
+                                    <div className="md:hidden">
+                                        <button
+                                            onClick={handleRecalculate}
+                                            disabled={isRecalculating}
+                                            className={`flex items-center text-sm font-medium text-indigo-600 bg-indigo-50 p-2 rounded-lg hover:bg-indigo-100 transition-colors shadow-sm ${isRecalculating ? 'opacity-70 cursor-not-allowed' : 'cursor-pointer'}`}
                                         >
-                                            Main View
-                                        </button>
-                                        <button 
-                                            onClick={() => {
-                                                setActiveTab('HISTORY');
-                                                const yest = new Date();
-                                                yest.setDate(yest.getDate() - 1);
-                                                setSelectedDate(yest);
-                                            }}
-                                            className={`px-3 py-1.5 text-sm font-semibold rounded-md transition-all cursor-pointer ${activeTab === 'HISTORY' ? 'bg-white text-indigo-700 shadow-sm' : 'text-gray-500 hover:text-gray-700'}`}
-                                        >
-                                            History
+                                            <RefreshCw className={`w-4 h-4 ${isRecalculating ? 'animate-spin' : ''}`} />
                                         </button>
                                     </div>
                                 </div>
-                                <div className="flex gap-2 shrink-0 w-full md:w-auto justify-end">
+
+                                <div className="flex w-full md:w-auto justify-center md:justify-start bg-gray-200/60 p-1 rounded-lg shrink-0">
+                                    <button 
+                                        onClick={() => {
+                                            setActiveTab('FUTURE');
+                                            setSelectedDate(new Date());
+                                        }}
+                                        className={`px-3 py-1.5 text-sm font-semibold rounded-md transition-all cursor-pointer w-1/2 md:w-auto text-center ${activeTab === 'FUTURE' ? 'bg-white text-indigo-700 shadow-sm' : 'text-gray-500 hover:text-gray-700'}`}
+                                    >
+                                        Main View
+                                    </button>
+                                    <button 
+                                        onClick={() => {
+                                            setActiveTab('HISTORY');
+                                            const yest = new Date();
+                                            yest.setDate(yest.getDate() - 1);
+                                            setSelectedDate(yest);
+                                        }}
+                                        className={`px-3 py-1.5 text-sm font-semibold rounded-md transition-all cursor-pointer w-1/2 md:w-auto text-center ${activeTab === 'HISTORY' ? 'bg-white text-indigo-700 shadow-sm' : 'text-gray-500 hover:text-gray-700'}`}
+                                    >
+                                        History
+                                    </button>
+                                </div>
+                                
+                                {/* Desktop Refresh Button */}
+                                <div className="hidden md:flex gap-2 shrink-0">
                                     <button
                                         onClick={handleRecalculate}
                                         disabled={isRecalculating}
                                         className={`flex items-center text-sm font-medium text-indigo-600 bg-indigo-50 px-3 py-1.5 rounded-lg hover:bg-indigo-100 transition-colors shadow-sm ${isRecalculating ? 'opacity-70 cursor-not-allowed' : 'cursor-pointer'}`}
                                     >
-                                        <RefreshCw className={`w-4 h-4 md:mr-1.5 ${isRecalculating ? 'animate-spin' : ''}`} />
-                                        <span className="hidden md:inline">{isRecalculating ? 'Recalculating...' : 'Recalculate Plan'}</span>
+                                        <RefreshCw className={`w-4 h-4 mr-1.5 ${isRecalculating ? 'animate-spin' : ''}`} />
+                                        <span>{isRecalculating ? 'Recalculating...' : 'Recalculate Plan'}</span>
                                     </button>
                                 </div>
                             </div>
@@ -598,7 +611,7 @@ export default function Dashboard() {
                             </button>
                         </div>
                         <div className="p-0 overflow-y-auto w-full">
-                            <table className="w-full text-left border-collapse">
+                            <table className="w-full text-left border-collapse hidden sm:table">
                                 <thead className="bg-gray-50 text-xs uppercase font-semibold text-gray-500 sticky top-0 z-10 shadow-sm">
                                     <tr>
                                         <th className="px-6 py-3 border-b border-gray-100">Course</th>
@@ -699,6 +712,98 @@ export default function Dashboard() {
                                     })}
                                 </tbody>
                             </table>
+
+                            {/* Mobile Cards View */}
+                            <div className="sm:hidden flex flex-col gap-4 p-4 bg-gray-50/30">
+                                {courses.map(c => {
+                                    const dateVal = examDrafts[c.id]?.date || '';
+                                    const timeVal = examDrafts[c.id]?.time || '';
+                                    let daysLeftText = "—";
+                                    let daysLeftColor = "text-gray-400";
+                                    if (dateVal) {
+                                        const dLeft = Math.ceil((new Date(dateVal).getTime() - new Date().getTime()) / (1000 * 60 * 60 * 24));
+                                        if (dLeft >= 0) {
+                                            daysLeftText = `${dLeft} days`;
+                                            if (dLeft < 14) daysLeftColor = "text-red-600 font-bold";
+                                            else if (dLeft <= 30) daysLeftColor = "text-yellow-600 font-semibold";
+                                            else daysLeftColor = "text-emerald-600";
+                                        } else {
+                                            daysLeftText = "Passed";
+                                            daysLeftColor = "text-gray-400 line-through";
+                                        }
+                                    }
+
+                                    return (
+                                        <div key={c.id} className="bg-white border border-gray-200 rounded-xl p-4 shadow-sm">
+                                            <div className="flex justify-between items-start mb-3">
+                                                <div>
+                                                    <div className="font-bold text-gray-900">{c.course?.code}</div>
+                                                    <div className="text-xs text-gray-500 line-clamp-1">{c.course?.title}</div>
+                                                </div>
+                                                <div className={`text-sm ${daysLeftColor}`}>
+                                                    {daysLeftText}
+                                                </div>
+                                            </div>
+                                            <div className="flex gap-2 text-xs text-gray-600 mb-3">
+                                                <span className="bg-gray-100 px-2 py-1 rounded">Units: {c.course?.units}</span>
+                                                <span className="bg-gray-100 px-2 py-1 rounded">Difficulty: {c.course?.difficulty}</span>
+                                            </div>
+                                            <div className="space-y-3">
+                                                <div className="flex gap-2">
+                                                    <input
+                                                        type="date"
+                                                        value={dateVal}
+                                                        onChange={(e) => handleDraftChange(c.id, 'date', e.target.value || null)}
+                                                        className="w-full rounded-lg border-gray-300 py-1.5 px-3 text-sm focus:ring-indigo-500 focus:border-indigo-500"
+                                                    />
+                                                    <input
+                                                        type="time"
+                                                        value={timeVal}
+                                                        onChange={(e) => handleDraftChange(c.id, 'time', e.target.value || null)}
+                                                        className="w-full rounded-lg border-gray-300 py-1.5 px-3 text-sm focus:ring-indigo-500 focus:border-indigo-500"
+                                                    />
+                                                </div>
+                                                <input 
+                                                    type="text" 
+                                                    placeholder="Venue" 
+                                                    value={examDrafts[c.id]?.venue || ''}
+                                                    onChange={(e) => handleDraftChange(c.id, 'venue', e.target.value)}
+                                                    className="w-full rounded-lg border-gray-300 py-1.5 px-3 text-sm"
+                                                />
+                                                <div className="flex gap-2">
+                                                    <input 
+                                                        type="number" 
+                                                        placeholder="Mins" 
+                                                        value={examDrafts[c.id]?.duration || 180}
+                                                        onChange={(e) => handleDraftChange(c.id, 'duration', parseInt(e.target.value))}
+                                                        className="w-1/2 rounded-lg border-gray-300 py-1.5 px-3 text-sm"
+                                                    />
+                                                    <input 
+                                                        type="text" 
+                                                        placeholder="Notes" 
+                                                        value={examDrafts[c.id]?.instructions || ''}
+                                                        onChange={(e) => handleDraftChange(c.id, 'instructions', e.target.value)}
+                                                        className="w-1/2 rounded-lg border-gray-300 py-1.5 px-3 text-sm"
+                                                    />
+                                                </div>
+                                            </div>
+                                            {(dateVal || timeVal) && (
+                                                <div className="mt-3 text-right">
+                                                    <button
+                                                        onClick={() => {
+                                                            handleDraftChange(c.id, 'date', null);
+                                                            handleDraftChange(c.id, 'time', null);
+                                                        }}
+                                                        className="text-xs font-semibold text-gray-500 hover:text-red-600 px-3 py-1.5 rounded bg-gray-100 hover:bg-red-50 transition-colors"
+                                                    >
+                                                        Clear Date & Time
+                                                    </button>
+                                                </div>
+                                            )}
+                                        </div>
+                                    )
+                                })}
+                            </div>
                         </div>
                         <div className="px-6 py-4 bg-gray-50 border-t border-gray-100 flex justify-between shrink-0">
                             <button
@@ -778,7 +883,7 @@ export default function Dashboard() {
             )}
             {isSettingsModalOpen && (
                 <div className="fixed inset-0 bg-gray-900/50 backdrop-blur-sm z-[90] flex items-center justify-center p-4 animate-in fade-in duration-200">
-                    <div className="bg-white rounded-2xl shadow-xl w-full max-w-md overflow-hidden p-6 animate-in zoom-in-95 duration-200">
+                    <div className="bg-white rounded-2xl shadow-xl w-full max-w-md overflow-hidden p-6 animate-in zoom-in-95 duration-200 max-h-[90vh] overflow-y-auto">
                         <div className="flex justify-between items-center mb-6">
                             <h3 className="text-xl font-bold text-gray-900 flex items-center gap-2">
                                 <Settings className="w-5 h-5 text-indigo-600" />
@@ -860,7 +965,7 @@ export default function Dashboard() {
             {/* Study Time Modal */}
             {isStudyTimeModalOpen && (
                 <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-gray-900/40 backdrop-blur-sm animate-in fade-in duration-200">
-                    <div className="bg-white rounded-2xl shadow-xl w-full max-w-md overflow-hidden animate-in zoom-in-95 duration-200">
+                    <div className="bg-white rounded-2xl shadow-xl w-full max-w-md overflow-hidden animate-in zoom-in-95 duration-200 max-h-[90vh] overflow-y-auto">
                         <div className="flex justify-between items-center p-6 border-b border-gray-100 bg-gray-50/50">
                             <h3 className="text-xl font-bold text-gray-900 flex items-center gap-2">
                                 <Clock className="w-5 h-5 text-indigo-600" />

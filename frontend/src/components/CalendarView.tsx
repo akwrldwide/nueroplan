@@ -47,7 +47,7 @@ export default function CalendarView({ sessions = [], courses = [], selectedDate
             <div className="p-6">
                 <div className="grid grid-cols-7 mb-2">
                     {weekDays.map(dayName => (
-                        <div key={dayName} className="text-center text-xs font-semibold text-gray-400 uppercase tracking-wider py-2">
+                        <div key={dayName} className="text-center text-[10px] sm:text-xs font-semibold text-gray-400 uppercase tracking-wider py-1 sm:py-2">
                             {dayName}
                         </div>
                     ))}
@@ -69,7 +69,7 @@ export default function CalendarView({ sessions = [], courses = [], selectedDate
                         const hasSessions = daySessions.length > 0;
                         const isExamDay = courses.some(c => c.exam_date && isSameDay(new Date(c.exam_date), day));
 
-                        let baseClasses = "relative flex flex-col items-center justify-center p-2 h-14 w-full rounded-xl transition-all duration-200 cursor-pointer ";
+                        let baseClasses = "relative flex flex-col items-center justify-center p-1 sm:p-2 h-10 sm:h-14 w-full rounded-lg sm:rounded-xl transition-all duration-200 cursor-pointer ";
                         if (!isCurrentMonth) {
                             baseClasses += "text-gray-300 hover:bg-gray-50 ";
                         } else if (isSelected) {
@@ -86,7 +86,7 @@ export default function CalendarView({ sessions = [], courses = [], selectedDate
                                 onClick={() => onSelectDate(day)}
                                 className={baseClasses}
                             >
-                                <span className={isSelected ? "text-white" : ""}>{format(day, 'd')}</span>
+                                <span className={`${isSelected ? "text-white" : ""} text-sm sm:text-base`}>{format(day, 'd')}</span>
                                 
                                 <div className="absolute bottom-1.5 flex gap-1 items-center">
                                     {isExamDay && (

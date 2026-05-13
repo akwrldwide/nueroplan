@@ -367,7 +367,7 @@ export default function Onboarding() {
                     </div>
                 )}
 
-                <div className="bg-white rounded-2xl shadow-xl border border-gray-100 p-8 sm:p-10">
+                <div className="bg-white rounded-2xl shadow-xl border border-gray-100 p-5 sm:p-10">
 
                     {step === 1 && (
                         <form onSubmit={handleProfileSubmit} className="space-y-6 animate-in fade-in slide-in-from-bottom-4 duration-500">
@@ -435,7 +435,7 @@ export default function Onboarding() {
                                 </div>
                                 <div className="sm:col-span-2">
                                     <label className="block text-sm font-medium text-gray-700 mb-1">Academic Goal</label>
-                                    <div className="grid grid-cols-3 gap-4 mt-2">
+                                    <div className="grid grid-cols-1 sm:grid-cols-3 gap-4 mt-2">
                                         {['Pass All', 'Improve GPA', 'First Class'].map((goal) => (
                                             <div
                                                 key={goal}
@@ -471,8 +471,8 @@ export default function Onboarding() {
                                 <p className="text-gray-500 mt-2">Select the courses you're taking this semester.</p>
                             </div>
 
-                            <div className="overflow-x-auto border border-gray-200 rounded-xl">
-                                <table className="min-w-full divide-y divide-gray-200">
+                            <div className="border border-gray-200 rounded-xl overflow-hidden bg-gray-50/50">
+                                <table className="min-w-full divide-y divide-gray-200 hidden sm:table">
                                     <thead className="bg-gray-50">
                                         <tr>
                                             <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Select</th>
@@ -508,6 +508,30 @@ export default function Onboarding() {
                                         )}
                                     </tbody>
                                 </table>
+
+                                {/* Mobile Cards View */}
+                                <div className="sm:hidden flex flex-col gap-3 p-3">
+                                    {courses.map((c, idx) => (
+                                        <div key={idx} className="bg-white border border-gray-200 rounded-xl p-4 shadow-sm flex items-start gap-3">
+                                            <div className="mt-0.5">
+                                                <CheckCircle className="w-5 h-5 text-indigo-600 shrink-0" />
+                                            </div>
+                                            <div>
+                                                <div className="font-bold text-gray-900">{c.code}</div>
+                                                <div className="text-sm text-gray-600 mb-3">{c.title}</div>
+                                                <div className="flex gap-2 text-xs font-medium text-gray-600">
+                                                    <span className="bg-gray-100 px-2 py-1 rounded-md">Units: {c.units}</span>
+                                                    <span className="bg-gray-100 px-2 py-1 rounded-md">Difficulty: {c.difficulty}</span>
+                                                </div>
+                                            </div>
+                                        </div>
+                                    ))}
+                                    {courses.length === 0 && (
+                                        <div className="p-4 text-center text-sm text-gray-500">
+                                            No courses loaded.
+                                        </div>
+                                    )}
+                                </div>
                             </div>
 
                             <div className="mt-8 flex justify-between">

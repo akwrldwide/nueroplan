@@ -67,7 +67,7 @@ export default function AuthLayout({ children }: AuthLayoutProps) {
             </div>
 
             {/* Right Panel (Form Container) */}
-            <div className="flex-1 flex flex-col justify-center px-4 sm:px-6 lg:px-20 py-12 bg-white relative animate-fade-in">
+            <div className="flex-1 flex flex-col justify-center px-4 sm:px-8 lg:px-20 py-8 sm:py-12 bg-white relative animate-fade-in">
                 {/* Mobile Header (visible only on small screens) */}
                 <div className="md:hidden flex items-center justify-center gap-2 mb-8">
                     <div className="bg-indigo-600 p-2 rounded-xl">

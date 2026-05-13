@@ -196,7 +196,7 @@ export default function CourseList() {
 
                 <div className="bg-white border border-gray-200 rounded-2xl shadow-sm overflow-hidden">
                     <div className="overflow-x-auto">
-                        <table className="w-full text-left border-collapse">
+                        <table className="w-full text-left border-collapse hidden sm:table">
                             <thead className="bg-gray-50 border-b border-gray-200">
                                 <tr>
                                     <th className="px-6 py-4 text-xs font-semibold text-gray-500 uppercase tracking-wider cursor-pointer hover:bg-gray-100 transition-colors"
@@ -287,6 +287,74 @@ export default function CourseList() {
                                 )}
                             </tbody>
                         </table>
+
+                        {/* Mobile Cards View */}
+                        <div className="sm:hidden flex flex-col gap-4 p-4 bg-gray-50/50">
+                            {filteredAndSortedCourses.map((item) => {
+                                const diff = item.course?.difficulty || 0;
+                                const isHighRisk = diff >= 4;
+                                
+                                return (
+                                    <div key={item.id} className="bg-white border border-gray-200 rounded-2xl p-5 shadow-sm">
+                                        <div className="flex justify-between items-start mb-3">
+                                            <div>
+                                                <span className="bg-indigo-50 text-indigo-700 px-3 py-1 font-bold rounded-lg text-xs border border-indigo-100 inline-block mb-2">
+                                                    {item.course?.code}
+                                                </span>
+                                                <h3 className="text-sm font-bold text-gray-900 leading-snug">{item.course?.title}</h3>
+                                            </div>
+                                            {isHighRisk && (
+                                                <span className="inline-flex items-center gap-1 bg-red-50 text-red-700 px-2 py-0.5 font-bold rounded text-[10px] border border-red-100 shrink-0 ml-2 mt-1">
+                                                    <AlertTriangle size={10}/> High Risk
+                                                </span>
+                                            )}
+                                        </div>
+                                        
+                                        <div className="flex items-center gap-4 text-xs font-medium text-gray-600 mb-4 bg-gray-50 p-2.5 rounded-xl border border-gray-100">
+                                            <div className="flex items-center gap-1.5 border-r border-gray-200 pr-4">
+                                                <BookOpen size={14} className="text-gray-400"/>
+                                                {item.course?.units} Units
+                                            </div>
+                                            <div className="flex-1">
+                                                <div className="flex items-center justify-between mb-1">
+                                                    <span>Level {diff}</span>
+                                                </div>
+                                                <div className="w-full h-1.5 bg-gray-200 rounded-full overflow-hidden">
+                                                    <div className={`h-full rounded-full ${isHighRisk ? 'bg-red-500' : 'bg-indigo-500'}`} style={{ width: `${(diff/5)*100}%` }}></div>
+                                                </div>
+                                            </div>
+                                        </div>
+                                        
+                                        <div className="flex justify-between items-center pt-3 border-t border-gray-100 mt-2">
+                                            <Link 
+                                                to={`/quiz/${item.id}`}
+                                                className="flex-1 mr-3 py-2 bg-indigo-50 text-indigo-600 hover:bg-indigo-600 hover:text-white rounded-xl transition-colors border border-indigo-100 flex items-center justify-center gap-2 font-bold text-xs"
+                                            >
+                                                <PlayCircle size={14} /> Take Quiz
+                                            </Link>
+                                            <div className="flex gap-2">
+                                                <button onClick={() => openEdit(item)} className="p-2 text-gray-500 bg-gray-50 hover:text-blue-600 hover:bg-blue-50 rounded-lg transition-colors border border-gray-200" title="Edit">
+                                                    <Edit2 size={14} />
+                                                </button>
+                                                <button onClick={() => openDelete(item)} className="p-2 text-gray-500 bg-gray-50 hover:text-red-600 hover:bg-red-50 rounded-lg transition-colors border border-gray-200" title="Delete">
+                                                    <Trash2 size={14} />
+                                                </button>
+                                            </div>
+                                        </div>
+                                    </div>
+                                )
+                            })}
+                            
+                            {filteredAndSortedCourses.length === 0 && (
+                                <div className="py-10 text-center text-gray-500 bg-white rounded-2xl border border-dashed border-gray-300">
+                                    <div className="flex flex-col items-center justify-center gap-2">
+                                        <BookOpen size={32} className="text-gray-300 mb-2"/>
+                                        <p className="font-medium text-gray-600">No courses found</p>
+                                        <p className="text-xs">Try adjusting your search.</p>
+                                    </div>
+                                </div>
+                            )}
+                        </div>
                     </div>
                 </div>
             </main>

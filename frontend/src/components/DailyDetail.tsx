@@ -99,7 +99,7 @@ export default function DailyDetail({ date, sessions, onCompleteSession, activeT
                                 <div key={session.id} className="group">
                                     <div className={`p-5 flex flex-col sm:flex-row sm:items-center justify-between hover:bg-gray-50/50 transition-colors border-l-4 ${session.session_type === 'REVISION' ? 'border-orange-400 bg-orange-50/30 hover:bg-orange-50/50' : 'border-transparent hover:border-indigo-100'}`}>
                                         <div className="flex flex-col mb-3 sm:mb-0">
-                                            <div className="flex items-center gap-2">
+                                            <div className="flex flex-wrap items-center gap-2">
                                                 <span className="font-bold text-gray-900 text-sm">
                                                     {session.start_time} - {session.end_time}
                                                 </span>

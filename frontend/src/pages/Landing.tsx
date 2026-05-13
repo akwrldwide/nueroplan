@@ -1,11 +1,12 @@
 import { Link, useNavigate } from 'react-router-dom';
-import { useContext, useEffect } from 'react';
+import { useContext, useEffect, useState } from 'react';
 import { AuthContext } from '../context/AuthContext';
-import { BrainCircuit, Target, Clock, BarChart3, ArrowRight, ShieldCheck, CheckCircle2, CalendarDays, Activity, Flame } from 'lucide-react';
+import { BrainCircuit, Target, Clock, BarChart3, ArrowRight, ShieldCheck, CheckCircle2, CalendarDays, Activity, Flame, Menu, X as CloseIcon } from 'lucide-react';
 
 export default function Landing() {
     const { user, loading } = useContext(AuthContext);
     const navigate = useNavigate();
+    const [isMobileMenuOpen, setIsMobileMenuOpen] = useState(false);
 
     useEffect(() => {
         if (!loading && user) {
@@ -28,15 +29,42 @@ export default function Landing() {
                             </div>
                             <span className="font-bold text-xl text-gray-900 tracking-tight">Nuero Plan</span>
                         </div>
-                        <div className="flex items-center gap-4">
+                        <div className="hidden md:flex items-center gap-4">
                             <Link to="/login" className="text-sm font-medium text-gray-600 hover:text-indigo-600 transition">Log in</Link>
                             <Link to="/register" className="text-sm font-medium bg-gradient-to-r from-indigo-600 to-blue-600 text-white px-5 py-2 rounded-xl hover:from-indigo-700 hover:to-blue-700 transition-all shadow-md shadow-indigo-200 hover:-translate-y-0.5">
                                 Get Started
                             </Link>
                         </div>
+                        <div className="md:hidden flex items-center">
+                            <button onClick={() => setIsMobileMenuOpen(true)} className="text-gray-500 hover:text-gray-900 focus:outline-none">
+                                <Menu className="w-6 h-6" />
+                            </button>
+                        </div>
                     </div>
                 </div>
             </nav>
+
+            {/* Mobile Navigation Drawer */}
+            {isMobileMenuOpen && (
+                <div className="fixed inset-0 z-[60] flex md:hidden">
+                    <div className="fixed inset-0 bg-gray-900/50 backdrop-blur-sm" onClick={() => setIsMobileMenuOpen(false)}></div>
+                    <div className="relative flex flex-col w-64 max-w-xs h-full bg-white shadow-2xl animate-in slide-in-from-left duration-300">
+                        <div className="flex items-center justify-between h-16 px-4 border-b border-gray-100">
+                            <div className="flex items-center gap-2">
+                                <BrainCircuit className="text-indigo-600 w-6 h-6" />
+                                <span className="font-bold text-lg text-gray-900">Nuero Plan</span>
+                            </div>
+                            <button onClick={() => setIsMobileMenuOpen(false)} className="text-gray-400 hover:text-gray-600">
+                                <CloseIcon className="w-5 h-5" />
+                            </button>
+                        </div>
+                        <div className="flex flex-col px-4 py-6 space-y-4 overflow-y-auto">
+                            <Link onClick={() => setIsMobileMenuOpen(false)} to="/login" className="block px-3 py-2 text-base font-medium text-gray-700 hover:text-indigo-600 hover:bg-gray-50 rounded-lg">Log in</Link>
+                            <Link onClick={() => setIsMobileMenuOpen(false)} to="/register" className="block px-3 py-2 text-base font-medium text-center text-white bg-indigo-600 rounded-xl shadow-sm hover:bg-indigo-700">Get Started</Link>
+                        </div>
+                    </div>
+                </div>
+            )}
 
             <main className="flex-1 relative">
                 {/* Background Blobs */}
@@ -54,20 +82,20 @@ export default function Landing() {
                                 <ShieldCheck className="w-4 h-4" />
                                 <span>Built for students aiming for top academic performance</span>
                             </div>
-                            <h1 className="text-5xl md:text-6xl lg:text-6xl font-extrabold text-gray-900 tracking-tight mb-6 leading-[1.1]">
+                            <h1 className="text-4xl md:text-5xl lg:text-6xl font-extrabold text-gray-900 tracking-tight mb-6 leading-[1.1]">
                                 Plan Your Semester Like a <span className="text-transparent bg-clip-text bg-gradient-to-r from-indigo-600 to-blue-600">Top Student</span>
                             </h1>
-                            <p className="text-xl text-gray-500 mb-10 max-w-2xl mx-auto lg:mx-0">
+                            <p className="text-lg md:text-xl text-gray-500 mb-8 md:mb-10 max-w-2xl mx-auto lg:mx-0">
                                 AI-powered study planning that adapts to your courses, exams, and availability. Stop cramming, start optimizing.
                             </p>
                             
-                            <div className="flex flex-col sm:flex-row gap-4 justify-center lg:justify-start">
-                                <Link to="/register" className="inline-flex justify-center items-center px-8 py-4 border border-transparent text-lg font-semibold rounded-xl text-white bg-gradient-to-r from-indigo-600 to-blue-600 hover:from-indigo-700 hover:to-blue-700 shadow-xl shadow-indigo-200 transition-all hover:-translate-y-1">
+                            <div className="flex flex-col sm:flex-row gap-3 sm:gap-4 justify-center lg:justify-start">
+                                <Link to="/register" className="inline-flex justify-center items-center px-6 sm:px-8 py-3.5 sm:py-4 border border-transparent text-base sm:text-lg font-semibold rounded-xl text-white bg-gradient-to-r from-indigo-600 to-blue-600 hover:from-indigo-700 hover:to-blue-700 shadow-xl shadow-indigo-200 transition-all hover:-translate-y-1 w-full sm:w-auto">
                                     Start Your Smart Study Plan <ArrowRight className="ml-2 w-5 h-5" />
                                 </Link>
                                 <button 
                                     onClick={() => document.getElementById('how-it-works')?.scrollIntoView({ behavior: 'smooth' })}
-                                    className="inline-flex justify-center items-center px-8 py-4 border-2 border-gray-200 text-lg font-semibold rounded-xl text-gray-700 bg-white hover:bg-gray-50 hover:border-gray-300 transition-all"
+                                    className="inline-flex justify-center items-center px-6 sm:px-8 py-3.5 sm:py-4 border-2 border-gray-200 text-base sm:text-lg font-semibold rounded-xl text-gray-700 bg-white hover:bg-gray-50 hover:border-gray-300 transition-all w-full sm:w-auto"
                                 >
                                     See How It Works
                                 </button>
@@ -80,7 +108,7 @@ export default function Landing() {
                         </div>
 
                         {/* Right Side: Visual Mockup */}
-                        <div className="relative animate-float hidden md:block">
+                        <div className="relative animate-float mt-8 lg:mt-0">
                             <div className="relative rounded-2xl bg-white border border-gray-200 shadow-2xl p-6 transform rotate-1 hover:rotate-0 transition-transform duration-500">
                                 {/* Header Mockup */}
                                 <div className="flex items-center justify-between mb-8 border-b border-gray-100 pb-4">
@@ -102,20 +130,20 @@ export default function Landing() {
                                 {/* Body Mockup */}
                                 <div className="grid grid-cols-3 gap-6">
                                     {/* Smart Study Plan (Primary) */}
-                                    <div className="col-span-2 space-y-4">
+                                    <div className="col-span-3 lg:col-span-2 space-y-4">
                                         <div className="flex justify-between items-center">
                                             <h4 className="font-bold text-gray-800">Today's Smart Plan</h4>
                                             <span className="text-xs font-semibold text-indigo-600 bg-indigo-50 px-2 py-1 rounded">Optimized</span>
                                         </div>
                                         
                                         <div className="bg-gradient-to-r from-indigo-50 to-blue-50 border border-indigo-100 p-4 rounded-xl shadow-sm">
-                                            <div className="flex justify-between items-start mb-2">
+                                            <div className="flex flex-col sm:flex-row justify-between items-start mb-2 gap-2 sm:gap-0">
                                                 <div>
                                                     <span className="text-xs font-bold text-white bg-indigo-600 px-2 py-0.5 rounded-md mb-1 inline-block">High Priority</span>
                                                     <h5 className="font-bold text-gray-900 text-lg">Algorithms Revision</h5>
                                                     <p className="text-sm text-gray-600">Graph Theory & Dynamic Programming</p>
                                                 </div>
-                                                <div className="text-right">
+                                                <div className="sm:text-right">
                                                     <p className="font-bold text-indigo-700">2.5 hrs</p>
                                                     <p className="text-xs text-gray-500">14:00 - 16:30</p>
                                                 </div>
@@ -126,13 +154,13 @@ export default function Landing() {
                                         </div>
 
                                         <div className="bg-white border border-gray-100 p-4 rounded-xl shadow-sm">
-                                            <div className="flex justify-between items-start">
+                                            <div className="flex flex-col sm:flex-row justify-between items-start gap-2 sm:gap-0">
                                                 <div>
                                                     <span className="text-xs font-bold text-gray-600 bg-gray-100 px-2 py-0.5 rounded-md mb-1 inline-block">Medium Priority</span>
                                                     <h5 className="font-bold text-gray-800">Database Systems</h5>
                                                     <p className="text-sm text-gray-500">SQL Practice Quiz</p>
                                                 </div>
-                                                <div className="text-right">
+                                                <div className="sm:text-right">
                                                     <p className="font-bold text-gray-700">1.0 hr</p>
                                                     <p className="text-xs text-gray-400">17:00 - 18:00</p>
                                                 </div>
@@ -141,24 +169,24 @@ export default function Landing() {
                                     </div>
 
                                     {/* Sidebar (Performance & Calendar) */}
-                                    <div className="col-span-1 space-y-4">
-                                        <div className="bg-white border border-gray-100 p-4 rounded-xl shadow-sm">
+                                    <div className="col-span-3 lg:col-span-1 flex flex-row lg:flex-col gap-4">
+                                        <div className="bg-white border border-gray-100 p-4 rounded-xl shadow-sm flex-1 lg:flex-none">
                                             <div className="flex items-center gap-2 mb-3">
                                                 <Activity className="w-5 h-5 text-emerald-500" />
                                                 <h4 className="font-bold text-gray-800 text-sm">Exam Risk</h4>
                                             </div>
-                                            <div className="relative w-24 h-24 mx-auto mb-2">
+                                            <div className="relative w-20 h-20 sm:w-24 sm:h-24 mx-auto mb-2">
                                                 <svg className="w-full h-full" viewBox="0 0 36 36">
                                                     <path className="text-gray-100" strokeWidth="4" stroke="currentColor" fill="none" d="M18 2.0845 a 15.9155 15.9155 0 0 1 0 31.831 a 15.9155 15.9155 0 0 1 0 -31.831" />
                                                     <path className="text-emerald-500" strokeWidth="4" strokeDasharray="80, 100" stroke="currentColor" fill="none" d="M18 2.0845 a 15.9155 15.9155 0 0 1 0 31.831 a 15.9155 15.9155 0 0 1 0 -31.831" />
                                                 </svg>
                                                 <div className="absolute inset-0 flex items-center justify-center flex-col">
-                                                    <span className="font-bold text-xl text-gray-800">Low</span>
+                                                    <span className="font-bold text-lg sm:text-xl text-gray-800">Low</span>
                                                 </div>
                                             </div>
                                         </div>
-                                        <div className="bg-indigo-50 border border-indigo-100 p-4 rounded-xl shadow-sm flex items-center gap-3">
-                                            <div className="bg-indigo-100 p-2 rounded-lg">
+                                        <div className="bg-indigo-50 border border-indigo-100 p-4 rounded-xl shadow-sm flex flex-col justify-center gap-3 flex-1 lg:flex-none lg:flex-row lg:items-center">
+                                            <div className="bg-indigo-100 p-2 rounded-lg w-fit">
                                                 <CalendarDays className="w-5 h-5 text-indigo-600" />
                                             </div>
                                             <div>
@@ -225,10 +253,10 @@ export default function Landing() {
                             <div className="flex flex-col md:flex-row items-center justify-between gap-8 md:gap-16 relative z-10">
                                 <div className="md:w-1/2 md:text-right flex flex-col md:items-end">
                                     <div className="flex items-center gap-4 mb-3 md:flex-row-reverse">
-                                        <div className="w-12 h-12 shrink-0 rounded-full bg-indigo-500 flex items-center justify-center font-bold text-xl shadow-lg shadow-indigo-500/30 text-white">1</div>
-                                        <h3 className="text-2xl font-bold text-gray-900">Enter Your Academic Profile</h3>
+                                        <div className="w-10 h-10 md:w-12 md:h-12 shrink-0 rounded-full bg-indigo-500 flex items-center justify-center font-bold text-lg md:text-xl shadow-lg shadow-indigo-500/30 text-white">1</div>
+                                        <h3 className="text-xl md:text-2xl font-bold text-gray-900">Enter Your Academic Profile</h3>
                                     </div>
-                                    <p className="text-gray-500 text-lg md:pr-16 pl-16 md:pl-0">Select your courses, goals, and availability</p>
+                                    <p className="text-gray-500 text-base md:text-lg md:pr-16 pl-14 md:pl-0">Select your courses, goals, and availability</p>
                                 </div>
                                 <div className="md:w-1/2 w-full">
                                     <div className="bg-white rounded-2xl p-2 border border-gray-200 shadow-2xl shadow-indigo-100 overflow-hidden transform transition hover:scale-[1.02]">
@@ -241,10 +269,10 @@ export default function Landing() {
                             <div className="flex flex-col md:flex-row-reverse items-center justify-between gap-8 md:gap-16 relative z-10">
                                 <div className="md:w-1/2 flex flex-col items-start">
                                     <div className="flex items-center gap-4 mb-3">
-                                        <div className="w-12 h-12 shrink-0 rounded-full bg-blue-500 flex items-center justify-center font-bold text-xl shadow-lg shadow-blue-500/30 text-white">2</div>
-                                        <h3 className="text-2xl font-bold text-gray-900">Generate Adaptive Study Plan</h3>
+                                        <div className="w-10 h-10 md:w-12 md:h-12 shrink-0 rounded-full bg-blue-500 flex items-center justify-center font-bold text-lg md:text-xl shadow-lg shadow-blue-500/30 text-white">2</div>
+                                        <h3 className="text-xl md:text-2xl font-bold text-gray-900">Generate Adaptive Study Plan</h3>
                                     </div>
-                                    <p className="text-gray-500 text-lg pl-16">The system intelligently allocates study sessions based on difficulty and exam proximity</p>
+                                    <p className="text-gray-500 text-base md:text-lg pl-14 md:pl-16">The system intelligently allocates study sessions based on difficulty and exam proximity</p>
                                 </div>
                                 <div className="md:w-1/2 w-full">
                                     <div className="bg-white rounded-2xl p-2 border border-gray-200 shadow-2xl shadow-blue-100 overflow-hidden transform transition hover:scale-[1.02]">
@@ -257,10 +285,10 @@ export default function Landing() {
                             <div className="flex flex-col md:flex-row items-center justify-between gap-8 md:gap-16 relative z-10">
                                 <div className="md:w-1/2 md:text-right flex flex-col md:items-end">
                                     <div className="flex items-center gap-4 mb-3 md:flex-row-reverse">
-                                        <div className="w-12 h-12 shrink-0 rounded-full bg-emerald-500 flex items-center justify-center font-bold text-xl shadow-lg shadow-emerald-500/30 text-white">3</div>
-                                        <h3 className="text-2xl font-bold text-gray-900">Track & Improve</h3>
+                                        <div className="w-10 h-10 md:w-12 md:h-12 shrink-0 rounded-full bg-emerald-500 flex items-center justify-center font-bold text-lg md:text-xl shadow-lg shadow-emerald-500/30 text-white">3</div>
+                                        <h3 className="text-xl md:text-2xl font-bold text-gray-900">Track & Improve</h3>
                                     </div>
-                                    <p className="text-gray-500 text-lg md:pr-16 pl-16 md:pl-0">Monitor performance, identify high-risk courses, and continuously optimize your schedule</p>
+                                    <p className="text-gray-500 text-base md:text-lg md:pr-16 pl-14 md:pl-0">Monitor performance, identify high-risk courses, and continuously optimize your schedule</p>
                                 </div>
                                 <div className="md:w-1/2 w-full">
                                     <div className="bg-white rounded-2xl p-2 border border-gray-200 shadow-2xl shadow-emerald-100 overflow-hidden transform transition hover:scale-[1.02]">

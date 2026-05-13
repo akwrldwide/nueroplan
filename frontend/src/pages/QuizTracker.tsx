@@ -301,9 +301,9 @@ export default function QuizTracker() {
                                 </div>
                                 
                                 <div className="flex items-center gap-6">
-                                    <div className="text-right">
-                                        <div className="text-gray-500 text-xs mb-1.5 font-medium">{format(new Date(result.taken_at), 'MMM dd, yyyy • hh:mm a')}</div>
-                                        <div className="flex items-center justify-end gap-3">
+                                    <div className="text-left md:text-right w-full md:w-auto mt-2 md:mt-0">
+                                        <div className="text-gray-500 text-xs mb-2 md:mb-1.5 font-medium">{format(new Date(result.taken_at), 'MMM dd, yyyy • hh:mm a')}</div>
+                                        <div className="flex items-center justify-start md:justify-end gap-3">
                                             <span className="text-gray-900 font-bold text-xl">{score.toFixed(0)}%</span>
                                             <span className={`text-[10px] uppercase tracking-wider font-bold px-2 py-0.5 rounded-md border ${badgeClass}`}>
                                                 {badgeText}
