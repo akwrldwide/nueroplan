@@ -254,87 +254,134 @@ export default function QuizTracker() {
             )}
         </div>
 
-        {/* Table Section */}
-        <div className="bg-white rounded-2xl shadow-sm border border-gray-100 overflow-hidden">
-          <div className="px-6 py-5 border-b border-gray-100 bg-gray-50/50">
-            <h3 className="text-lg font-bold text-gray-900 flex items-center gap-2">
-                <Calendar className="w-5 h-5 text-indigo-600" />
-                Recent Attempts
-            </h3>
-          </div>
-          <div className="overflow-x-auto w-full">
-            <table className="w-full text-left border-collapse min-w-[600px]">
-              <thead className="bg-white text-xs uppercase font-semibold text-gray-400 border-b border-gray-100">
-                <tr>
-                  <th className="px-6 py-4">Topic / Course</th>
-                  <th className="px-6 py-4">Date & Time</th>
-                  <th className="px-6 py-4 text-center">Score</th>
-                  <th className="px-6 py-4 text-center">Level Segment</th>
-                </tr>
-              </thead>
-              <tbody className="divide-y divide-gray-50">
-                {results.length === 0 && !loading ? (
-                  <tr>
-                    <td colSpan={4} className="px-6 py-8 text-center text-sm text-gray-500">
-                      No attempts recorded yet.
-                    </td>
-                  </tr>
-                ) : (
-                  [...results].map((result) => {
-                    const score = result.score_percentage;
-                    let badgeClass = "bg-yellow-100 text-yellow-700 border-yellow-200";
-                    let badgeText = "Fair";
-                    
-                    if (score >= 70) {
-                        badgeClass = "bg-emerald-100 text-emerald-700 border-emerald-200";
-                        badgeText = "Strong";
-                    } else if (score < 40) {
-                        badgeClass = "bg-rose-100 text-rose-700 border-rose-200";
-                        badgeText = "Needs Work";
-                    }
+        {/* History Section (Light Theme) */}
+        <div className="bg-white rounded-3xl p-6 md:p-8 shadow-sm border border-gray-100 mt-12">
+            <h2 className="text-2xl font-bold text-gray-900 flex items-center gap-3 mb-8">
+                🔥 Quiz History
+            </h2>
 
-                    const diffLevel = result.difficulty || 3;
-                    const diffText = diffLevel <= 2 ? "Easy" : diffLevel === 3 ? "Medium" : "Hard";
-                    const courseName = result.course?.title || result.course?.code || "Unknown Course";
-                    
-                    return (
-                      <tr key={result.id} className="hover:bg-gray-50/50 transition-colors">
-                        <td className="px-6 py-4">
-                          <div className="flex items-center gap-3">
-                            <div className="w-10 h-10 rounded-xl bg-indigo-50 flex items-center justify-center shrink-0">
-                                <BookOpen className="w-5 h-5 text-indigo-600" />
-                            </div>
-                            <div>
-                               <div className="font-bold text-gray-900 text-sm">{result.topic_name || courseName}</div>
-                               <div className="flex items-center mt-1">
-                                  {result.topic_name && <span className="text-[10px] uppercase font-bold text-gray-400 truncate max-w-[150px] mr-2">{courseName}</span>}
-                               </div>
-                            </div>
-                          </div>
-                        </td>
-                        <td className="px-6 py-4 text-sm text-gray-600">
-                          {format(new Date(result.taken_at), 'MMM dd, yyyy • hh:mm a')}
-                        </td>
-                        <td className="px-6 py-4">
-                            <div className="flex justify-center items-center">
-                                <span className="font-black text-gray-900">{score.toFixed(0)}%</span>
-                            </div>
-                        </td>
-                        <td className="px-6 py-4">
-                            <div className="flex flex-col items-center gap-1.5">
-                                <span className={`text-[11px] uppercase tracking-wider font-bold px-2 py-0.5 rounded-full border ${badgeClass}`}>
-                                    {badgeText}
-                                </span>
-                                <span className="text-[10px] font-medium text-gray-400">Diff: {diffText}</span>
-                            </div>
-                        </td>
-                      </tr>
-                    );
-                  })
+            <div className="space-y-10">
+                {results.filter(r => !r.topic_name).length > 0 && (
+                    <div>
+                        <h3 className="text-lg font-bold text-gray-900 mb-4">Full Course Quiz</h3>
+                        <div className="space-y-3">
+                            {results.filter(r => !r.topic_name).map(result => {
+                                const score = result.score_percentage;
+                                let badgeClass = "bg-yellow-100 text-yellow-700 border-yellow-200";
+                                let badgeText = "FAIR";
+                                if (score >= 70) {
+                                    badgeClass = "bg-emerald-100 text-emerald-700 border-emerald-200";
+                                    badgeText = "STRONG";
+                                } else if (score < 40) {
+                                    badgeClass = "bg-rose-100 text-rose-700 border-rose-200";
+                                    badgeText = "NEEDS WORK";
+                                }
+                                const courseCode = result.course?.code || "COURSE";
+                                const courseName = result.course?.title || "Unknown Course";
+
+                                return (
+                                    <div key={result.id} className="bg-white hover:bg-indigo-50/50 transition-colors border border-gray-200 rounded-2xl p-5 flex flex-col md:flex-row md:items-center justify-between gap-4 shadow-sm group">
+                                        <div className="flex flex-col gap-2">
+                                            <div className="flex items-center gap-3">
+                                                <div className="w-3.5 h-3.5 bg-indigo-500 rounded-sm shadow-[0_0_10px_rgba(99,102,241,0.4)] shrink-0"></div>
+                                                <span className="text-gray-900 font-semibold text-[15px] tracking-wide">
+                                                    {courseCode} — {courseName}
+                                                </span>
+                                            </div>
+                                            <div className="text-indigo-600 text-[11px] font-mono tracking-widest font-bold">
+                                                [ FULL COURSE ]
+                                            </div>
+                                        </div>
+                                        
+                                        <div className="flex items-center gap-6">
+                                            <div className="text-right">
+                                                <div className="text-gray-500 text-xs mb-1.5 font-medium">{format(new Date(result.taken_at), 'MMM dd, yyyy • hh:mm a')}</div>
+                                                <div className="flex items-center justify-end gap-3">
+                                                    <span className="text-gray-900 font-bold text-xl">{score.toFixed(0)}%</span>
+                                                    <span className={`text-[10px] uppercase tracking-wider font-bold px-2 py-0.5 rounded-md border ${badgeClass}`}>
+                                                        {badgeText}
+                                                    </span>
+                                                </div>
+                                            </div>
+                                            <button className="text-gray-400 hover:text-indigo-600 transition-colors p-2" title="Copy Result Details">
+                                                <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+                                                    <rect x="9" y="9" width="13" height="13" rx="2" ry="2"></rect>
+                                                    <path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"></path>
+                                                </svg>
+                                            </button>
+                                        </div>
+                                    </div>
+                                );
+                            })}
+                        </div>
+                    </div>
                 )}
-              </tbody>
-            </table>
-          </div>
+                
+                {results.filter(r => !!r.topic_name).length > 0 && (
+                    <div>
+                        <h3 className="text-lg font-bold text-gray-900 mb-4">Topic-based Quiz</h3>
+                        <div className="space-y-3">
+                            {results.filter(r => !!r.topic_name).map(result => {
+                                const score = result.score_percentage;
+                                let badgeClass = "bg-yellow-100 text-yellow-700 border-yellow-200";
+                                let badgeText = "FAIR";
+                                if (score >= 70) {
+                                    badgeClass = "bg-emerald-100 text-emerald-700 border-emerald-200";
+                                    badgeText = "STRONG";
+                                } else if (score < 40) {
+                                    badgeClass = "bg-rose-100 text-rose-700 border-rose-200";
+                                    badgeText = "NEEDS WORK";
+                                }
+                                const courseCode = result.course?.code || "COURSE";
+                                const courseName = result.course?.title || "Unknown Course";
+
+                                return (
+                                    <div key={result.id} className="bg-white hover:bg-indigo-50/50 transition-colors border border-gray-200 rounded-2xl p-5 flex flex-col md:flex-row md:items-center justify-between gap-4 shadow-sm group">
+                                        <div className="flex flex-col gap-2">
+                                            <div className="flex items-center gap-3">
+                                                <div className="w-3.5 h-3.5 bg-indigo-500 rounded-sm shadow-[0_0_10px_rgba(99,102,241,0.4)] shrink-0"></div>
+                                                <span className="text-gray-900 font-semibold text-[15px] tracking-wide">
+                                                    {courseCode} — {courseName}
+                                                </span>
+                                            </div>
+                                            <div className="text-indigo-600 text-[11px] font-mono tracking-widest font-bold">
+                                                [ TOPIC QUIZ ]
+                                            </div>
+                                            <div className="text-gray-600 text-sm mt-0.5">
+                                                <span className="text-gray-500">Topics:</span> <span className="text-gray-900 font-medium">{result.topic_name}</span>
+                                            </div>
+                                        </div>
+                                        
+                                        <div className="flex items-center gap-6">
+                                            <div className="text-right">
+                                                <div className="text-gray-500 text-xs mb-1.5 font-medium">{format(new Date(result.taken_at), 'MMM dd, yyyy • hh:mm a')}</div>
+                                                <div className="flex items-center justify-end gap-3">
+                                                    <span className="text-gray-900 font-bold text-xl">{score.toFixed(0)}%</span>
+                                                    <span className={`text-[10px] uppercase tracking-wider font-bold px-2 py-0.5 rounded-md border ${badgeClass}`}>
+                                                        {badgeText}
+                                                    </span>
+                                                </div>
+                                            </div>
+                                            <button className="text-gray-400 hover:text-indigo-600 transition-colors p-2" title="Copy Result Details">
+                                                <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+                                                    <rect x="9" y="9" width="13" height="13" rx="2" ry="2"></rect>
+                                                    <path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"></path>
+                                                </svg>
+                                            </button>
+                                        </div>
+                                    </div>
+                                );
+                            })}
+                        </div>
+                    </div>
+                )}
+
+                {results.length === 0 && !loading && (
+                    <div className="text-center text-gray-500 py-8 bg-gray-50 rounded-xl border border-dashed border-gray-200">
+                        No attempts recorded yet.
+                    </div>
+                )}
+            </div>
         </div>
 
       </div>
