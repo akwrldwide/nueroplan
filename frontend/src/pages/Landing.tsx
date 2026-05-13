@@ -65,7 +65,10 @@ export default function Landing() {
                                 <Link to="/register" className="inline-flex justify-center items-center px-8 py-4 border border-transparent text-lg font-semibold rounded-xl text-white bg-gradient-to-r from-indigo-600 to-blue-600 hover:from-indigo-700 hover:to-blue-700 shadow-xl shadow-indigo-200 transition-all hover:-translate-y-1">
                                     Start Your Smart Study Plan <ArrowRight className="ml-2 w-5 h-5" />
                                 </Link>
-                                <button className="inline-flex justify-center items-center px-8 py-4 border-2 border-gray-200 text-lg font-semibold rounded-xl text-gray-700 bg-white hover:bg-gray-50 hover:border-gray-300 transition-all">
+                                <button 
+                                    onClick={() => document.getElementById('how-it-works')?.scrollIntoView({ behavior: 'smooth' })}
+                                    className="inline-flex justify-center items-center px-8 py-4 border-2 border-gray-200 text-lg font-semibold rounded-xl text-gray-700 bg-white hover:bg-gray-50 hover:border-gray-300 transition-all"
+                                >
                                     See How It Works
                                 </button>
                             </div>
@@ -201,6 +204,69 @@ export default function Landing() {
                                 </div>
                                 <h3 className="text-xl font-bold text-gray-900 mb-3">Continuous Assessment</h3>
                                 <p className="text-gray-500 leading-relaxed">Take quick module quizzes to feed data back into our Risk Engine, altering your study plan week by week automatically.</p>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+
+                {/* How It Works Section */}
+                <div id="how-it-works" className="bg-white py-24 border-t border-gray-100 relative z-10">
+                    <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
+                        <div className="text-center max-w-3xl mx-auto mb-16">
+                            <h2 className="text-3xl md:text-4xl font-bold mb-4 text-gray-900">How It Works</h2>
+                            <p className="text-gray-500 text-lg">A simple, three-step process to transform your academic performance.</p>
+                        </div>
+
+                        <div className="space-y-16 md:space-y-24 relative">
+                            {/* Connecting Line */}
+                            <div className="hidden md:block absolute left-1/2 top-10 bottom-10 w-0.5 bg-gray-100 -translate-x-1/2 z-0"></div>
+
+                            {/* Step 1 */}
+                            <div className="flex flex-col md:flex-row items-center justify-between gap-8 md:gap-16 relative z-10">
+                                <div className="md:w-1/2 md:text-right flex flex-col md:items-end">
+                                    <div className="flex items-center gap-4 mb-3 md:flex-row-reverse">
+                                        <div className="w-12 h-12 shrink-0 rounded-full bg-indigo-500 flex items-center justify-center font-bold text-xl shadow-lg shadow-indigo-500/30 text-white">1</div>
+                                        <h3 className="text-2xl font-bold text-gray-900">Enter Your Academic Profile</h3>
+                                    </div>
+                                    <p className="text-gray-500 text-lg md:pr-16 pl-16 md:pl-0">Select your courses, goals, and availability</p>
+                                </div>
+                                <div className="md:w-1/2 w-full">
+                                    <div className="bg-white rounded-2xl p-2 border border-gray-200 shadow-2xl shadow-indigo-100 overflow-hidden transform transition hover:scale-[1.02]">
+                                        <img src="/images/onboarding.png" alt="Onboarding form preview" className="w-full h-auto rounded-xl shadow-inner transition-opacity" />
+                                    </div>
+                                </div>
+                            </div>
+
+                            {/* Step 2 */}
+                            <div className="flex flex-col md:flex-row-reverse items-center justify-between gap-8 md:gap-16 relative z-10">
+                                <div className="md:w-1/2 flex flex-col items-start">
+                                    <div className="flex items-center gap-4 mb-3">
+                                        <div className="w-12 h-12 shrink-0 rounded-full bg-blue-500 flex items-center justify-center font-bold text-xl shadow-lg shadow-blue-500/30 text-white">2</div>
+                                        <h3 className="text-2xl font-bold text-gray-900">Generate Adaptive Study Plan</h3>
+                                    </div>
+                                    <p className="text-gray-500 text-lg pl-16">The system intelligently allocates study sessions based on difficulty and exam proximity</p>
+                                </div>
+                                <div className="md:w-1/2 w-full">
+                                    <div className="bg-white rounded-2xl p-2 border border-gray-200 shadow-2xl shadow-blue-100 overflow-hidden transform transition hover:scale-[1.02]">
+                                        <img src="/images/study_plan.png" alt="Study plan card preview" className="w-full h-auto rounded-xl shadow-inner transition-opacity" />
+                                    </div>
+                                </div>
+                            </div>
+
+                            {/* Step 3 */}
+                            <div className="flex flex-col md:flex-row items-center justify-between gap-8 md:gap-16 relative z-10">
+                                <div className="md:w-1/2 md:text-right flex flex-col md:items-end">
+                                    <div className="flex items-center gap-4 mb-3 md:flex-row-reverse">
+                                        <div className="w-12 h-12 shrink-0 rounded-full bg-emerald-500 flex items-center justify-center font-bold text-xl shadow-lg shadow-emerald-500/30 text-white">3</div>
+                                        <h3 className="text-2xl font-bold text-gray-900">Track & Improve</h3>
+                                    </div>
+                                    <p className="text-gray-500 text-lg md:pr-16 pl-16 md:pl-0">Monitor performance, identify high-risk courses, and continuously optimize your schedule</p>
+                                </div>
+                                <div className="md:w-1/2 w-full">
+                                    <div className="bg-white rounded-2xl p-2 border border-gray-200 shadow-2xl shadow-emerald-100 overflow-hidden transform transition hover:scale-[1.02]">
+                                        <img src="/images/analytics.png" alt="Analytics and risk card preview" className="w-full h-auto rounded-xl shadow-inner transition-opacity" />
+                                    </div>
+                                </div>
                             </div>
                         </div>
                     </div>
