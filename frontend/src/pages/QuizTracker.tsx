@@ -1,7 +1,7 @@
 import { useState, useEffect } from 'react';
 import axios from 'axios';
 import { LineChart, Line, XAxis, YAxis, CartesianGrid, Tooltip, ResponsiveContainer } from 'recharts';
-import { ArrowLeft, Award, TrendingUp, Calendar, BookOpen, Target, Star, ShieldCheck } from 'lucide-react';
+import { ArrowLeft, Award, TrendingUp, Target, Star, ShieldCheck } from 'lucide-react';
 import { format } from 'date-fns';
 
 export default function QuizTracker() {
