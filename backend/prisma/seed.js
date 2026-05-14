@@ -1660,7 +1660,7 @@ async function main() {
         };
 
         const existing = await prisma.course.findFirst({
-            where: { code: c.course_code }
+            where: { code: c.course_code, program_id: program.id }
         });
 
         let courseRecord;
