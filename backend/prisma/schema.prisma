@@ -41,7 +41,7 @@ model AcademicProfile {
   level           Int
   semester        Int      @default(1)
   curriculum_type String // "BMAS" or "Upload"
-  current_cgpa    Float
+  current_cgpa    Float?
   academic_goal   String // "Pass All", "Improve GPA", "First Class"
   created_at      DateTime @default(now())
 

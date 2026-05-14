@@ -20,9 +20,17 @@ export default function Onboarding() {
         level: '100',
         semester: '1',
         curriculum_type: 'BMAS',
-        current_cgpa: '0.0',
+        current_cgpa: '',
         academic_goal: 'Pass All',
     });
+
+    const requiresCGPA = Number(profileData.level) > 100 || (Number(profileData.level) === 100 && profileData.semester === '2');
+
+    useEffect(() => {
+        if (!requiresCGPA && profileData.current_cgpa) {
+            setProfileData(prev => ({ ...prev, current_cgpa: '' }));
+        }
+    }, [requiresCGPA, profileData.current_cgpa]);
 
     const [courses, setCourses] = useState<any[]>([]);
 
@@ -158,6 +166,15 @@ export default function Onboarding() {
 
     const handleProfileSubmit = async (e: React.FormEvent) => {
         e.preventDefault();
+
+        if (requiresCGPA) {
+            const cgpaVal = parseFloat(profileData.current_cgpa);
+            if (!profileData.current_cgpa || isNaN(cgpaVal) || cgpaVal <= 0 || cgpaVal > 5.0) {
+                alert("Please enter a valid CGPA between 0.0 and 5.0");
+                return;
+            }
+        }
+
         setIsSubmitting(true);
         try {
             await axios.post('/api/profile', profileData);
@@ -416,13 +433,23 @@ export default function Onboarding() {
                                 </div>
 
                                 <div>
-                                    <label className="block text-sm font-medium text-gray-700 mb-1">Current CGPA</label>
+                                    <label className="block text-sm font-medium text-gray-700 mb-1">
+                                        Current CGPA {requiresCGPA && <span className="text-red-500">*</span>}
+                                    </label>
                                     <input
-                                        type="number" step="0.01" min="0" max="5" required
+                                        type="number" step="0.01" min="0" max="5" required={requiresCGPA}
                                         value={profileData.current_cgpa}
                                         onChange={(e) => setProfileData({ ...profileData, current_cgpa: e.target.value })}
-                                        className="block w-full rounded-xl border-gray-300 border py-3 px-4 focus:ring-indigo-500 focus:border-indigo-500 sm:text-sm"
+                                        disabled={!requiresCGPA}
+                                        className={`block w-full rounded-xl border py-3 px-4 focus:ring-indigo-500 focus:border-indigo-500 sm:text-sm ${
+                                            !requiresCGPA ? 'bg-gray-100 border-gray-200 text-gray-400 cursor-not-allowed' : 'border-gray-300 bg-white text-gray-900'
+                                        }`}
                                     />
+                                    {!requiresCGPA && (
+                                        <p className="mt-2 text-xs text-gray-500">
+                                            You can update your CGPA after your first semester results are released.
+                                        </p>
+                                    )}
                                 </div>
                                 <div className="sm:col-span-2">
                                     <label className="block text-sm font-medium text-gray-700 mb-1">Academic Goal</label>

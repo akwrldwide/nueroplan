@@ -14,14 +14,22 @@ const createProfile = async (req, res) => {
             return res.status(400).json({ message: 'Profile already exists' });
         }
 
+        const parsedLevel = parseInt(level);
+        const parsedSemester = semester ? parseInt(semester) : 1;
+        const requiresCGPA = parsedLevel > 100 || (parsedLevel === 100 && parsedSemester === 2);
+
+        if (requiresCGPA && (!current_cgpa || parseFloat(current_cgpa) <= 0)) {
+            return res.status(400).json({ message: "Current CGPA is required" });
+        }
+
         const profile = await prisma.academicProfile.create({
             data: {
                 user_id,
                 program,
-                level: parseInt(level),
-                semester: semester ? parseInt(semester) : 1,
+                level: parsedLevel,
+                semester: parsedSemester,
                 curriculum_type,
-                current_cgpa: parseFloat(current_cgpa),
+                current_cgpa: current_cgpa && parseFloat(current_cgpa) > 0 ? parseFloat(current_cgpa) : null,
                 academic_goal,
             },
         });
