@@ -414,17 +414,7 @@ export default function Onboarding() {
                                         <option value="2">2nd Semester</option>
                                     </select>
                                 </div>
-                                <div>
-                                    <label className="block text-sm font-medium text-gray-700 mb-1">Curriculum Flow</label>
-                                    <select
-                                        value={profileData.curriculum_type}
-                                        onChange={(e) => setProfileData({ ...profileData, curriculum_type: e.target.value })}
-                                        className="block w-full rounded-xl border-gray-300 border py-3 px-4 focus:ring-indigo-500 focus:border-indigo-500 sm:text-sm"
-                                    >
-                                        <option value="BMAS">Use Predefined BMAS</option>
-                                        <option value="Upload">Manual Entry / Upload</option>
-                                    </select>
-                                </div>
+
                                 <div>
                                     <label className="block text-sm font-medium text-gray-700 mb-1">Current CGPA</label>
                                     <input
