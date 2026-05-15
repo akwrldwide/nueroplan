@@ -325,9 +325,9 @@ export default function Onboarding() {
             await axios.post('/api/plan/generate');
 
             await reloadUser();
-        } catch (error) {
+        } catch (error: any) {
             console.error(error);
-            alert('Error saving availability');
+            alert(`Error: ${error.response?.data?.message || error.response?.data?.error || 'Server error saving availability'}`);
         } finally {
             setIsSubmitting(false);
         }

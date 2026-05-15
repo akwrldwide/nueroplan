@@ -33,6 +33,7 @@ export default function Dashboard() {
     const [studyPref, setStudyPref] = useState(user?.post_exam_preference || 'OFF');
     const [allowMorningRevision, setAllowMorningRevision] = useState(user?.allow_morning_revision || false);
     const [preferredFocusWindow, setPreferredFocusWindow] = useState(user?.preferred_focus_window || 'ANY');
+    const [cgpa, setCgpa] = useState<number | ''>('');
 
     useEffect(() => {
         if (user) {
@@ -41,6 +42,12 @@ export default function Dashboard() {
             setPreferredFocusWindow(user.preferred_focus_window || 'ANY');
         }
     }, [user]);
+
+    useEffect(() => {
+        if (stats?.profile) {
+            setCgpa(stats.profile.current_cgpa ?? '');
+        }
+    }, [stats]);
 
     const openBulkModal = () => {
         const drafts: Record<string, any> = {};
@@ -213,7 +220,8 @@ export default function Dashboard() {
             await axios.put('/api/profile/settings', { 
                 post_exam_preference: studyPref,
                 allow_morning_revision: allowMorningRevision,
-                preferred_focus_window: preferredFocusWindow
+                preferred_focus_window: preferredFocusWindow,
+                current_cgpa: cgpa === '' ? null : cgpa
             });
             if (reloadUser) await reloadUser();
             setIsSettingsModalOpen(false);
@@ -942,6 +950,39 @@ export default function Dashboard() {
                                     <option value="late">Late (After 5 PM)</option>
                                 </select>
                             </div>
+
+                            {(() => {
+                                const isCgpaApplicable = stats?.profile && (
+                                    Number(stats.profile.level) > 100 || 
+                                    (Number(stats.profile.level) === 100 && Number(stats.profile.semester) > 1)
+                                );
+                                
+                                return (
+                                    <div className={`mt-4 ${!isCgpaApplicable ? 'opacity-60' : ''}`}>
+                                        <label className="block text-sm font-medium text-gray-700 mb-1">Current CGPA</label>
+                                        <p className="text-xs text-gray-500 mb-3">
+                                            {!isCgpaApplicable 
+                                                ? "CGPA is not applicable for 1st-semester students at the 100 level."
+                                                : "Update your CGPA to receive better performance insights."}
+                                        </p>
+                                        <input
+                                            type="number"
+                                            step="0.01"
+                                            min="0"
+                                            max="5.0"
+                                            disabled={!isCgpaApplicable}
+                                            className={`w-full border-gray-300 rounded-lg shadow-sm sm:text-sm py-2 px-3 border ${
+                                                !isCgpaApplicable 
+                                                    ? 'bg-gray-100 cursor-not-allowed text-gray-400' 
+                                                    : 'focus:ring-indigo-500 focus:border-indigo-500'
+                                            }`}
+                                            value={cgpa}
+                                            onChange={(e) => setCgpa(e.target.value === '' ? '' : parseFloat(e.target.value))}
+                                            placeholder="e.g. 4.5"
+                                        />
+                                    </div>
+                                );
+                            })()}
                         </div>
 
                         <div className="mt-8 flex gap-3">

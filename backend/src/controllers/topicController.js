@@ -20,10 +20,27 @@ exports.saveUserTopics = async (req, res) => {
         const userId = req.user.id;
         const { topics } = req.body; 
         
+        const activeCourses = await prisma.userCourse.findMany({
+            where: { user_id: userId, is_archived: false }
+        });
+        
+        const providedCourseIds = new Set(topics.map(t => t.course_id));
+        let topicsToSave = [...topics];
+
+        activeCourses.forEach(c => {
+            if (!providedCourseIds.has(c.course_id)) {
+                topicsToSave.push({
+                    course_id: c.course_id,
+                    topic_name: 'General Study',
+                    course_topic_id: null
+                });
+            }
+        });
+
         await prisma.userTopic.deleteMany({ where: { user_id: userId } });
 
         const savedTopics = await prisma.$transaction(
-            topics.map(t => 
+            topicsToSave.map(t => 
                 prisma.userTopic.create({
                     data: {
                         user_id: userId,

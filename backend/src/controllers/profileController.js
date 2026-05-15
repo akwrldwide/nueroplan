@@ -114,7 +114,7 @@ const updateProfile = async (req, res) => {
 
 const updateUserSettings = async (req, res) => {
     try {
-        const { post_exam_preference, allow_morning_revision, preferred_focus_window } = req.body;
+        const { post_exam_preference, allow_morning_revision, preferred_focus_window, current_cgpa } = req.body;
         const user = await prisma.user.update({
             where: { id: req.user.id },
             data: { 
@@ -123,6 +123,16 @@ const updateUserSettings = async (req, res) => {
                 preferred_focus_window: preferred_focus_window !== undefined ? preferred_focus_window : undefined
             }
         });
+
+        if (current_cgpa !== undefined) {
+            await prisma.academicProfile.update({
+                where: { user_id: req.user.id },
+                data: {
+                    current_cgpa: current_cgpa !== null && current_cgpa !== '' ? parseFloat(current_cgpa) : null
+                }
+            });
+        }
+
         res.json({ 
             message: 'Settings updated successfully', 
             post_exam_preference: user.post_exam_preference,

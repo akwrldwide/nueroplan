@@ -64,16 +64,47 @@ async function generateStudyPlan(user_id, fullRecalculate = false, forceFullSeme
     const preferredFocusWindow = userObj.preferred_focus_window || "ANY";
     const currentSemester = profile.semester;
 
-    const selectedTopics = await prisma.userTopic.findMany({
+    const userCourses = await prisma.userCourse.findMany({ 
+        where: { user_id, is_archived: false },
+        include: { course: true }
+    });
+
+    let selectedTopics = await prisma.userTopic.findMany({
         where: { 
             user_id, 
             is_selected: true,
-            is_archived: false,
-            course: { semester: currentSemester }
+            is_archived: false
         },
         include: { course: true }
     });
-    if (selectedTopics.length === 0) throw new Error("No topics selected for study this semester");
+
+    if (selectedTopics.length === 0) {
+        if (userCourses.length === 0) {
+             throw new Error("No active courses found. Please add courses first.");
+        }
+        
+        // Auto-seed missing topics for legacy users or skipped topic selections
+        const topicsToSave = userCourses.map(c => ({
+            user_id: user_id,
+            course_id: c.course_id,
+            topic_name: 'General Study',
+            mastery_level: 0,
+            is_selected: true
+        }));
+        
+        await prisma.userTopic.createMany({ data: topicsToSave });
+        
+        selectedTopics = await prisma.userTopic.findMany({
+            where: { 
+                user_id, 
+                is_selected: true,
+                is_archived: false
+            },
+            include: { course: true }
+        });
+    }
+
+    if (selectedTopics.length === 0) throw new Error("Failed to initialize study topics");
 
     const availabilities = await prisma.studyAvailability.findMany({ where: { user_id } });
     if (availabilities.length === 0) throw new Error("No study availability set");
@@ -81,11 +112,6 @@ async function generateStudyPlan(user_id, fullRecalculate = false, forceFullSeme
     const totalMinutes = getDayMinutes(availabilities);
     const totalAvailableWeeklyHours = totalMinutes / 60;
     if (totalAvailableWeeklyHours <= 0) throw new Error("Available hours must be greater than 0");
-
-    const userCourses = await prisma.userCourse.findMany({ 
-        where: { user_id, is_archived: false, course: { semester: currentSemester } },
-        include: { course: true }
-    });
     const dictUserCourses = {};
     let upcomingExams = 0;
     const today = new Date();

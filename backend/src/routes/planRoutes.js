@@ -11,7 +11,8 @@ router.post('/generate', authMiddleware, async (req, res) => {
         const plan = await generateStudyPlan(req.user.id, fullRecalculate, forceFullSemester);
         res.status(201).json({ message: 'Study plan generated', plan });
     } catch (error) {
-        console.error(error);
+        console.error("Plan generation error:", error);
+        require('fs').appendFileSync('plan_error.log', new Date().toISOString() + ': ' + error.stack + '\n');
         res.status(400).json({ message: error.message || 'Server error generating plan' });
     }
 });
