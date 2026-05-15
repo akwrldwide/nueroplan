@@ -16,6 +16,19 @@ router.post('/generate', authMiddleware, async (req, res) => {
         res.status(400).json({ message: error.message || 'Server error generating plan' });
     }
 });
+router.get('/debug', (req, res) => {
+    try {
+        const fs = require('fs');
+        if (fs.existsSync('plan_error.log')) {
+            const logs = fs.readFileSync('plan_error.log', 'utf8');
+            res.type('text/plain').send(logs);
+        } else {
+            res.send("No error logs found.");
+        }
+    } catch (err) {
+        res.status(500).send("Failed to read logs");
+    }
+});
 
 router.get('/current', authMiddleware, async (req, res) => {
     try {

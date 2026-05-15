@@ -152,8 +152,10 @@ export default function Dashboard() {
                 setPlanNotification(res.data.notification);
             }
             await fetchDashboardData();
-        } catch (e) {
-            alert("Failed to recalculate plan");
+        } catch (error: any) {
+            console.error(error);
+            const errorMsg = error.response?.data?.message || error.message || "Failed to recalculate plan";
+            alert(`Error generating plan: ${errorMsg}`);
         } finally {
             setIsRecalculating(false);
         }
