@@ -305,12 +305,21 @@ export default function Onboarding() {
                     }));
                 }
             } else {
+                // Auto-save any days that are currently being edited and have valid times
+                const updatedCustomTimes = { ...customTimes };
+                days.forEach(d => {
+                    if (updatedCustomTimes[d].isEditing && validateTimeRange(updatedCustomTimes[d].start_time, updatedCustomTimes[d].end_time)) {
+                        updatedCustomTimes[d].configured = true;
+                        updatedCustomTimes[d].isEditing = false;
+                    }
+                });
+                
                 finalAvailabilities = days
-                    .filter(d => customTimes[d].configured)
+                    .filter(d => updatedCustomTimes[d].configured)
                     .map(d => ({
                         day_of_week: d,
-                        start_time: customTimes[d].start_time,
-                        end_time: customTimes[d].end_time
+                        start_time: updatedCustomTimes[d].start_time,
+                        end_time: updatedCustomTimes[d].end_time
                     }));
             }
 

@@ -106,7 +106,13 @@ async function generateStudyPlan(user_id, fullRecalculate = false, forceFullSeme
 
     if (selectedTopics.length === 0) throw new Error("Failed to initialize study topics");
 
-    const availabilities = await prisma.studyAvailability.findMany({ where: { user_id } });
+    const availabilities = await prisma.studyAvailability.findMany({ 
+        where: { user_id }
+    });
+    
+    // Ensure chronological order of days: Mon -> Sun
+    const daysOrder = { 'Mon': 0, 'Tue': 1, 'Wed': 2, 'Thu': 3, 'Fri': 4, 'Sat': 5, 'Sun': 6 };
+    availabilities.sort((a, b) => daysOrder[a.day_of_week] - daysOrder[b.day_of_week]);
     if (availabilities.length === 0) throw new Error("No study availability set");
 
     const totalMinutes = getDayMinutes(availabilities);
