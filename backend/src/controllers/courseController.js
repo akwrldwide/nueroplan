@@ -55,9 +55,12 @@ const saveUserCourses = async (req, res) => {
         );
 
         // Advance Onboarding Stage to TOPICS
+        const user = await prisma.user.findUnique({ where: { id: user_id } });
+        const nextStage = user ? (user.onboarding_stage === 'COMPLETE' ? 'COMPLETE' : 'TOPICS') : 'TOPICS';
+
         await prisma.user.update({
             where: { id: user_id },
-            data: { onboarding_stage: 'TOPICS' }
+            data: { onboarding_stage: nextStage }
         });
 
         res.status(201).json({ message: 'Courses saved successfully', count: savedCourses.length });

@@ -54,9 +54,12 @@ exports.saveUserTopics = async (req, res) => {
             )
         );
 
+        const user = await prisma.user.findUnique({ where: { id: userId } });
+        const nextStage = user ? (user.onboarding_stage === 'COMPLETE' ? 'COMPLETE' : 'AVAILABILITY') : 'AVAILABILITY';
+
         await prisma.user.update({
             where: { id: userId },
-            data: { onboarding_stage: 'AVAILABILITY' }
+            data: { onboarding_stage: nextStage }
         });
 
         res.status(201).json({ message: 'Topics saved successfully', count: savedTopics.length });
