@@ -325,6 +325,9 @@ export default function Onboarding() {
                 return;
             }
             await reloadUser();
+            // Explicitly transition to next step in UI
+            setStep(3);
+            loadUserCoursesForTopics();
         } catch (error) {
             console.error(error);
             alert('Error saving courses');
@@ -444,6 +447,9 @@ export default function Onboarding() {
             
             if (user?.onboarding_stage === 'COMPLETE') {
                 navigate('/dashboard');
+            } else {
+                // Explicitly transition to next step in UI
+                setStep(4);
             }
         } catch (error) {
             console.error(error);
