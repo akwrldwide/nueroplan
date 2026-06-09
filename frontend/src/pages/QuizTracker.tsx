@@ -1,10 +1,12 @@
-import { useState, useEffect } from 'react';
-import axios from 'axios';
+import { useState, useEffect, useContext } from 'react';
+import { supabase } from '../supabaseClient';
+import { AuthContext } from '../context/AuthContext';
 import { LineChart, Line, XAxis, YAxis, CartesianGrid, Tooltip, ResponsiveContainer } from 'recharts';
 import { ArrowLeft, Award, TrendingUp, Target, Star, ShieldCheck } from 'lucide-react';
 import { format } from 'date-fns';
 
 export default function QuizTracker() {
+  const { user } = useContext(AuthContext);
   const [results, setResults] = useState<any[]>([]);
   const [insights, setInsights] = useState<any>(null);
   const [courses, setCourses] = useState<any[]>([]);
@@ -15,33 +17,101 @@ export default function QuizTracker() {
   const [courseFilter, setCourseFilter] = useState('all');
 
   useEffect(() => {
-    fetchStaticData();
-  }, []);
+    if (user) {
+      fetchStaticData();
+    }
+  }, [user]);
 
   useEffect(() => {
-    fetchFilteredResults();
-  }, [timeRange, courseFilter]);
+    if (user) {
+      fetchFilteredResults();
+    }
+  }, [timeRange, courseFilter, user]);
 
   const fetchStaticData = async () => {
+    if (!user) return;
     try {
-      const headers = { Authorization: `Bearer ${localStorage.getItem('token')}` };
-      const [coursesRes, insightsRes] = await Promise.all([
-        axios.get('/api/courses', { headers }),
-        axios.get('/api/quiz/insights', { headers })
-      ]);
-      setCourses(coursesRes.data);
-      setInsights(insightsRes.data);
+      // Fetch user courses
+      const { data: coursesData, error: coursesErr } = await supabase
+        .from('UserCourse')
+        .select('*, course:Course(*)')
+        .eq('user_id', user.id)
+        .eq('is_archived', false);
+      if (coursesErr) throw coursesErr;
+      setCourses(coursesData || []);
+
+      // Calculate insights client-side
+      const startOfWeek = new Date();
+      startOfWeek.setHours(0, 0, 0, 0);
+      startOfWeek.setDate(startOfWeek.getDate() - startOfWeek.getDay()); // Sunday start
+
+      // Fetch all quiz results
+      const { data: allResults, error: resultsErr } = await supabase
+        .from('QuizResult')
+        .select('*')
+        .eq('user_id', user.id);
+      if (resultsErr) throw resultsErr;
+
+      const resultsList = allResults || [];
+      const weeklyQuizzesCount = resultsList.filter((r: any) => new Date(r.taken_at) >= startOfWeek).length;
+
+      let easyCount = 0, easyTotal = 0;
+      let medCount = 0, medTotal = 0;
+      let hardCount = 0, hardTotal = 0;
+      let perfectScores = 0;
+
+      resultsList.forEach((r: any) => {
+        const diff = r.difficulty || 3;
+        if (diff <= 2) { easyCount++; easyTotal += r.score_percentage; }
+        else if (diff === 3) { medCount++; medTotal += r.score_percentage; }
+        else { hardCount++; hardTotal += r.score_percentage; }
+
+        if (r.score_percentage === 100) perfectScores++;
+      });
+
+      setInsights({
+        weeklyQuizzesCount,
+        achievements: {
+            perfectScore: perfectScores > 0,
+            consistentLearner: resultsList.length > 10
+        },
+        averages: {
+            easy: easyCount > 0 ? (easyTotal / easyCount) : 0,
+            medium: medCount > 0 ? (medTotal / medCount) : 0,
+            hard: hardCount > 0 ? (hardTotal / hardCount) : 0
+        }
+      });
     } catch (err) {
       console.error('Failed to fetch static tracker data', err);
     }
   };
 
   const fetchFilteredResults = async () => {
+    if (!user) return;
     setLoading(true);
     try {
-      const headers = { Authorization: `Bearer ${localStorage.getItem('token')}` };
-      const res = await axios.get(`/api/quiz/results?time_range=${timeRange}&course_id=${courseFilter}`, { headers });
-      setResults(res.data);
+      let query = supabase
+        .from('QuizResult')
+        .select('*, course:Course(*)')
+        .eq('user_id', user.id);
+
+      if (courseFilter && courseFilter !== 'all') {
+        query = query.eq('course_id', courseFilter);
+      }
+
+      if (timeRange === '7d') {
+        const date = new Date();
+        date.setDate(date.getDate() - 7);
+        query = query.gte('taken_at', date.toISOString());
+      } else if (timeRange === '30d') {
+        const date = new Date();
+        date.setDate(date.getDate() - 30);
+        query = query.gte('taken_at', date.toISOString());
+      }
+
+      const { data, error } = await query.order('taken_at', { ascending: false });
+      if (error) throw error;
+      setResults(data || []);
     } catch (err) {
       console.error('Failed to fetch filtered quiz results', err);
     } finally {

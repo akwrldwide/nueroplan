@@ -1,7 +1,8 @@
-import { useState } from 'react';
+import { useState, useContext } from 'react';
 import { motion } from 'framer-motion';
 import { X, ArrowRight, ArrowLeft, Loader2, Download } from 'lucide-react';
-import axios from 'axios';
+import { supabase } from '../supabaseClient';
+import { AuthContext } from '../context/AuthContext';
 import jsPDF from 'jspdf';
 
 interface Question {
@@ -21,6 +22,7 @@ interface FlashcardQuizProps {
 }
 
 export default function FlashcardQuiz({ payload, onClose, onComplete }: FlashcardQuizProps) {
+  const { user } = useContext(AuthContext);
   const [questions, setQuestions] = useState<Question[]>([]);
   const [loading, setLoading] = useState(false);
   const [currentIndex, setCurrentIndex] = useState(0);
@@ -40,16 +42,17 @@ export default function FlashcardQuiz({ payload, onClose, onComplete }: Flashcar
   const startQuiz = async () => {
     setLoading(true);
     try {
-        const response = await axios.post('/api/quiz/generate', {
-            isWholeCourse: payload.isWholeCourse,
-            topics: payload.topics,
-            course_name: payload.course?.title || '',
-            amount: 5,
-            difficulty: 5
-        }, {
-            headers: { Authorization: `Bearer ${localStorage.getItem('token')}` }
+        const { data, error } = await supabase.functions.invoke('generate-quiz', {
+            body: {
+                isWholeCourse: payload.isWholeCourse,
+                topics: payload.topics,
+                course_name: payload.course?.title || '',
+                amount: 5,
+                difficulty: 5
+            }
         });
-        setQuestions(response.data.questions);
+        if (error) throw error;
+        setQuestions(data.questions || []);
         setShowChoice(true);
     } catch (error) {
         console.error('Failed to generate quiz', error);
@@ -80,18 +83,87 @@ export default function FlashcardQuiz({ payload, onClose, onComplete }: Flashcar
         : 3;
     
     try {
-        if (payload.course?.id) {
-            await axios.post('/api/quiz/ai-result', {
-                course_id: payload.course.id,
-                topic_name: payload.isWholeCourse ? 'Whole Course' : payload.topics.join(', '),
-                difficulty: avgDifficulty,
-                score_percentage
-            }, {
-                headers: { Authorization: `Bearer ${localStorage.getItem('token')}` }
-            });
+        if (payload.course?.id && user) {
+            const { error } = await supabase
+                .from('QuizResult')
+                .insert({
+                    user_id: user.id,
+                    course_id: payload.course.id,
+                    topic_name: payload.isWholeCourse ? 'Whole Course' : payload.topics.join(', '),
+                    difficulty: avgDifficulty,
+                    score_percentage
+                });
+            if (error) throw error;
         }
     } catch (err) {
         console.error("Failed to save AI quiz result", err);
+    }
+  };
+
+  const logMistake = async (questionObj: Question, option: string) => {
+    if (!user) return;
+    try {
+      let userTopicId: string | null = null;
+      
+      // Try to find matching UserTopic by name
+      const { data: topics } = await supabase
+        .from('UserTopic')
+        .select('id')
+        .eq('user_id', user.id)
+        .eq('course_id', payload.course.id)
+        .ilike('topic_name', questionObj.Topic.trim())
+        .limit(1);
+
+      if (topics && topics.length > 0) {
+        userTopicId = topics[0].id;
+      } else {
+        // Fallback: Find any topic for this course
+        const { data: fallbackTopics } = await supabase
+          .from('UserTopic')
+          .select('id')
+          .eq('user_id', user.id)
+          .eq('course_id', payload.course.id)
+          .limit(1);
+        if (fallbackTopics && fallbackTopics.length > 0) {
+          userTopicId = fallbackTopics[0].id;
+        }
+      }
+
+      if (!userTopicId) {
+        console.error("No user topic found for course", payload.course.id);
+        return;
+      }
+
+      const { error: insertErr } = await supabase
+        .from('MistakeLog')
+        .insert({
+          user_id: user.id,
+          user_topic_id: userTopicId,
+          question: questionObj.Question,
+          correct_answer: questionObj['Correct Answer'],
+          given_answer: option
+        });
+      if (insertErr) throw insertErr;
+
+      const oneWeekAgo = new Date();
+      oneWeekAgo.setDate(oneWeekAgo.getDate() - 7);
+
+      const { count, error: countErr } = await supabase
+        .from('MistakeLog')
+        .select('*', { count: 'exact', head: true })
+        .eq('user_topic_id', userTopicId)
+        .gte('created_at', oneWeekAgo.toISOString());
+
+      if (countErr) throw countErr;
+
+      if (count && count >= 3) {
+        await supabase
+          .from('UserTopic')
+          .update({ mastery_level: 0.1 })
+          .eq('id', userTopicId);
+      }
+    } catch (err) {
+      console.error('Failed to log mistake:', err);
     }
   };
 
@@ -103,15 +175,7 @@ export default function FlashcardQuiz({ payload, onClose, onComplete }: Flashcar
     
     const isCorrect = option === questions[currentIndex]['Correct Answer'];
     if (!isCorrect) {
-      // Log Mistake (null topic_id for whole course since it maps to course loosely)
-      axios.post('/api/mistakes', {
-        topic_id: null,
-        question: questions[currentIndex].Question,
-        correct_answer: questions[currentIndex]['Correct Answer'],
-        given_answer: option
-      }, {
-        headers: { Authorization: `Bearer ${localStorage.getItem('token')}` }
-      }).catch(err => console.error('Failed to log mistake', err));
+      logMistake(questions[currentIndex], option);
     }
   };
 

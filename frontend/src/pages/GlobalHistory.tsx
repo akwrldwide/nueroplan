@@ -1,5 +1,6 @@
-import { useState, useEffect } from 'react';
-import axios from 'axios';
+import { useState, useEffect, useContext } from 'react';
+import { supabase } from '../supabaseClient';
+import { AuthContext } from '../context/AuthContext';
 import { useNavigate } from 'react-router-dom';
 import { ArrowLeft, Printer, Calendar as CalendarIcon, Clock, BookOpen, CheckCircle, Target } from 'lucide-react';
 import { PieChart, Pie, Cell, Tooltip, ResponsiveContainer } from 'recharts';
@@ -15,15 +16,106 @@ interface AcademicSessionTimeline {
 }
 
 export default function GlobalHistory() {
+    const { user } = useContext(AuthContext);
     const navigate = useNavigate();
     const [timeline, setTimeline] = useState<AcademicSessionTimeline[]>([]);
     const [loading, setLoading] = useState(true);
 
     useEffect(() => {
         const fetchHistory = async () => {
+            if (!user) return;
             try {
-                const res = await axios.get('/api/progress/history/global');
-                setTimeline(res.data.timeline || []);
+                // 1. Fetch academic sessions
+                const { data: academicSessions, error: acadErr } = await supabase
+                    .from('AcademicSession')
+                    .select('*')
+                    .eq('user_id', user.id)
+                    .order('start_date', { ascending: false });
+                if (acadErr) throw acadErr;
+
+                // 2. Fetch the most recent study plan
+                const { data: recentPlans, error: planErr } = await supabase
+                    .from('StudyPlan')
+                    .select('*')
+                    .eq('user_id', user.id)
+                    .order('generated_date', { ascending: false })
+                    .limit(1);
+                if (planErr) throw planErr;
+                const currentPlan = recentPlans?.[0] || null;
+
+                // 3. Fetch all study sessions with userTopic and course joins, and parent studyPlan
+                const { data: studySessionsData, error: sessErr } = await supabase
+                    .from('StudySession')
+                    .select('*, topic:UserTopic!inner(*, course:Course(*)), studyPlan:StudyPlan(*)')
+                    .eq('topic.user_id', user.id);
+                if (sessErr) throw sessErr;
+
+                const allStudySessions = studySessionsData || [];
+
+                // 4. Build timeline for each academic session
+                const computedTimeline = [];
+                for (const session of (academicSessions || [])) {
+                    const startDateStr = new Date(session.start_date).toISOString().split('T')[0];
+                    const endDateStr = session.end_date 
+                        ? new Date(session.end_date).toISOString().split('T')[0] 
+                        : new Date().toISOString().split('T')[0];
+
+                    // Filter study sessions falling within the session boundaries
+                    let sessionStudySessions = allStudySessions.filter((s: any) => {
+                        if (!s.session_date) return false;
+                        const sDateStr = new Date(s.session_date).toISOString().split('T')[0];
+                        return sDateStr >= startDateStr && sDateStr <= endDateStr;
+                    });
+
+                    // Deduplicate legacy sessions
+                    const dateStrMaxPlanDate = new Map();
+                    for (const s of sessionStudySessions) {
+                        if (!s.session_date) continue;
+                        const dStr = new Date(s.session_date).toISOString().split('T')[0];
+                        const cMax = dateStrMaxPlanDate.get(dStr) || new Date(0);
+                        const sPlanDate = s.studyPlan ? new Date(s.studyPlan.generated_date) : new Date(0);
+                        if (sPlanDate > cMax) {
+                            dateStrMaxPlanDate.set(dStr, sPlanDate);
+                        }
+                    }
+
+                    sessionStudySessions = sessionStudySessions.filter((s: any) => {
+                        if (!s.session_date) return false;
+                        if (currentPlan && s.study_plan_id === currentPlan.id) return true;
+                        if (s.completed) return true;
+
+                        const dStr = new Date(s.session_date).toISOString().split('T')[0];
+                        const maxPlanDate = dateStrMaxPlanDate.get(dStr);
+                        const sPlanDate = s.studyPlan ? new Date(s.studyPlan.generated_date) : new Date(0);
+
+                        if (sPlanDate.getTime() === maxPlanDate?.getTime()) return true;
+                        return false;
+                    });
+
+                    const completedSessions = sessionStudySessions.filter((s: any) => s.completed);
+                    const totalHours = completedSessions.reduce((sum: number, s: any) => sum + (s.allocated_hours || 0), 0);
+
+                    const coursesStudied = new Set<string>();
+                    completedSessions.forEach((s: any) => {
+                        if (s.topic && s.topic.course) {
+                            coursesStudied.add(s.topic.course.code);
+                        }
+                    });
+
+                    const sessionName = `${session.level} Level - ${session.semester}`;
+
+                    computedTimeline.push({
+                        session_name: sessionName,
+                        start_date: session.start_date,
+                        end_date: session.end_date || new Date().toISOString(),
+                        total_hours: totalHours,
+                        courses_studied: coursesStudied.size,
+                        completed_sessions_count: completedSessions.length,
+                        total_sessions_count: sessionStudySessions.length
+                    });
+                }
+
+                setTimeline(computedTimeline);
             } catch (err) {
                 console.error("Error fetching global history:", err);
             } finally {
@@ -31,8 +123,10 @@ export default function GlobalHistory() {
             }
         };
 
-        fetchHistory();
-    }, []);
+        if (user) {
+            fetchHistory();
+        }
+    }, [user]);
 
     const handlePrint = () => {
         window.print();

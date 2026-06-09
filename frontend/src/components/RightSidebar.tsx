@@ -1,9 +1,11 @@
-import { useState, useEffect } from 'react';
+import { useState, useEffect, useContext } from 'react';
 import { Loader2, X, ChevronRight, Check } from 'lucide-react';
-import axios from 'axios';
+import { supabase } from '../supabaseClient';
+import { AuthContext } from '../context/AuthContext';
 import FlashcardQuiz from './FlashcardQuiz';
 
 export default function RightSidebar() {
+  const { user } = useContext(AuthContext);
   const [allTopics, setAllTopics] = useState<any[]>([]);
   const [loading, setLoading] = useState(true);
   const [activeQuizPayload, setActiveQuizPayload] = useState<any>(null);
@@ -14,14 +16,21 @@ export default function RightSidebar() {
   const [selectedTopicIds, setSelectedTopicIds] = useState<string[]>([]);
 
   useEffect(() => {
-    fetchSidebarData();
-  }, []);
+    if (user) {
+      fetchSidebarData();
+    }
+  }, [user]);
 
   const fetchSidebarData = async () => {
+    if (!user) return;
     try {
-      const headers = { Authorization: `Bearer ${localStorage.getItem('token')}` };
-      const topicsRes = await axios.get('/api/topics', { headers });
-      setAllTopics(topicsRes.data || []);
+      const { data, error } = await supabase
+        .from('UserTopic')
+        .select('*, course:Course(*)')
+        .eq('user_id', user.id)
+        .eq('is_archived', false);
+      if (error) throw error;
+      setAllTopics(data || []);
     } catch (err) {
       console.error(err);
     } finally {

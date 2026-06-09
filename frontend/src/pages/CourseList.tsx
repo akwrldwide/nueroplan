@@ -1,9 +1,11 @@
-import React, { useState, useEffect } from 'react';
+import React, { useState, useEffect, useContext } from 'react';
 import { Link } from 'react-router-dom';
-import axios from 'axios';
+import { supabase } from '../supabaseClient';
+import { AuthContext } from '../context/AuthContext';
 import { BrainCircuit, PlayCircle, BookOpen, Search, Filter, ArrowUpDown, Plus, Edit2, Trash2, X, AlertTriangle } from 'lucide-react';
 
 export default function CourseList() {
+    const { user } = useContext(AuthContext);
     const [courses, setCourses] = useState<any[]>([]);
     const [loading, setLoading] = useState(true);
     
@@ -22,14 +24,22 @@ export default function CourseList() {
     const [isSubmitting, setIsSubmitting] = useState(false);
 
     useEffect(() => {
-        fetchCourses();
-    }, []);
+        if (user) {
+            fetchCourses();
+        }
+    }, [user]);
 
     const fetchCourses = async () => {
+        if (!user) return;
         setLoading(true);
         try {
-            const res = await axios.get('/api/courses');
-            setCourses(res.data);
+            const { data, error } = await supabase
+                .from('UserCourse')
+                .select('*, course:Course(*, courseTopics:CourseTopic(*))')
+                .eq('user_id', user.id)
+                .eq('is_archived', false);
+            if (error) throw error;
+            setCourses(data || []);
         } catch (error) {
             console.error(error);
         } finally {
@@ -76,13 +86,68 @@ export default function CourseList() {
 
     const handleAddCourse = async (e: React.FormEvent) => {
         e.preventDefault();
+        if (!user) return;
         setIsSubmitting(true);
         try {
-            await axios.post('/api/courses/custom', formData);
+            // Get profile details
+            const { data: profile, error: profErr } = await supabase
+                .from('AcademicProfile')
+                .select('*')
+                .eq('user_id', user.id)
+                .single();
+            if (profErr) throw profErr;
+
+            // Get program
+            const { data: program, error: progErr } = await supabase
+                .from('Program')
+                .select('id')
+                .eq('name', profile.program)
+                .single();
+            if (progErr) throw progErr;
+
+            // Insert course
+            const { data: newCourse, error: courseErr } = await supabase
+                .from('Course')
+                .insert({
+                    program_id: program.id,
+                    code: formData.code,
+                    title: formData.title,
+                    units: parseInt(formData.units as any) || 3,
+                    difficulty: parseFloat(formData.difficulty as any) || 3.0,
+                    level: profile.level,
+                    semester: profile.semester
+                })
+                .select()
+                .single();
+            if (courseErr) throw courseErr;
+
+            // Insert userCourse
+            const { error: userCourseErr } = await supabase
+                .from('UserCourse')
+                .insert({
+                    user_id: user.id,
+                    course_id: newCourse.id,
+                    is_selected: true
+                });
+            if (userCourseErr) throw userCourseErr;
+
+            // Insert default userTopic
+            const { error: topicErr } = await supabase
+                .from('UserTopic')
+                .insert({
+                    user_id: user.id,
+                    course_id: newCourse.id,
+                    topic_name: 'General Study',
+                    mastery_level: 0.0,
+                    is_selected: true
+                });
+            if (topicErr) throw topicErr;
+
             fetchCourses();
             setIsAddModalOpen(false);
             setFormData({ code: '', title: '', units: 3, difficulty: 3 });
         } catch(err) {
+            console.error(err);
             alert("Failed to add course");
         } finally {
             setIsSubmitting(false);
@@ -94,10 +159,21 @@ export default function CourseList() {
         if(!selectedCourse) return;
         setIsSubmitting(true);
         try {
-            await axios.put(`/api/courses/custom/${selectedCourse.id}`, formData);
+            const { error: editErr } = await supabase
+                .from('Course')
+                .update({
+                    code: formData.code,
+                    title: formData.title,
+                    units: parseInt(formData.units as any),
+                    difficulty: parseFloat(formData.difficulty as any)
+                })
+                .eq('id', selectedCourse.course_id);
+            if (editErr) throw editErr;
+
             fetchCourses();
             setIsEditModalOpen(false);
         } catch(err) {
+            console.error(err);
             alert("Failed to edit course");
         } finally {
             setIsSubmitting(false);
@@ -108,10 +184,16 @@ export default function CourseList() {
         if(!selectedCourse) return;
         setIsSubmitting(true);
         try {
-            await axios.delete(`/api/courses/user-course/${selectedCourse.id}`);
+            const { error: deleteErr } = await supabase
+                .from('UserCourse')
+                .delete()
+                .eq('id', selectedCourse.id);
+            if (deleteErr) throw deleteErr;
+
             fetchCourses();
             setIsDeleteModalOpen(false);
         } catch(err) {
+            console.error(err);
             alert("Failed to delete course");
         } finally {
             setIsSubmitting(false);

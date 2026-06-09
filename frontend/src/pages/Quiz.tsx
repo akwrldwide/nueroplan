@@ -1,11 +1,13 @@
-import { useState, useEffect } from 'react';
+import { useState, useEffect, useContext } from 'react';
 import { useParams, useNavigate, Link } from 'react-router-dom';
-import axios from 'axios';
+import { supabase } from '../supabaseClient';
+import { AuthContext } from '../context/AuthContext';
 import { BrainCircuit, CheckCircle, XCircle } from 'lucide-react';
 
 export default function Quiz() {
     const { courseId } = useParams();
     const navigate = useNavigate();
+    const { user } = useContext(AuthContext);
     const [questions, setQuestions] = useState<any[]>([]);
     const [answers, setAnswers] = useState<Record<string, string>>({});
     const [loading, setLoading] = useState(true);
@@ -15,16 +17,21 @@ export default function Quiz() {
     useEffect(() => {
         const fetchQuestions = async () => {
             try {
-                const res = await axios.get(`/api/quiz/${courseId}`);
-                // If there are no seeded questions, we mock 3 questions for demonstration
-                if (res.data.length === 0) {
+                const { data, error } = await supabase
+                    .from('QuizQuestion')
+                    .select('*')
+                    .eq('course_id', courseId)
+                    .limit(20);
+                if (error) throw error;
+
+                if (!data || data.length === 0) {
                     setQuestions([
                         { id: '1', question_text: 'What is the primary function of the CPU?', option_a: 'Storage', option_b: 'Processing', option_c: 'Cooling', option_d: 'Display', correct_answer: 'Option B' },
                         { id: '2', question_text: 'Which data structure follows FIFO?', option_a: 'Stack', option_b: 'Tree', option_c: 'Queue', option_d: 'Graph', correct_answer: 'Option C' },
                         { id: '3', question_text: 'What does HTML stand for?', option_a: 'HyperText Markup Language', option_b: 'HighText Machine Language', option_c: 'HyperLoop Machine Language', option_d: 'None', correct_answer: 'Option A' }
                     ]);
                 } else {
-                    setQuestions(res.data);
+                    setQuestions(data);
                 }
             } catch (error) {
                 console.error(error);
@@ -32,7 +39,9 @@ export default function Quiz() {
                 setLoading(false);
             }
         };
-        fetchQuestions();
+        if (courseId) {
+            fetchQuestions();
+        }
     }, [courseId]);
 
     const handleSelect = (qId: string, option: string) => {
@@ -45,12 +54,12 @@ export default function Quiz() {
             alert("Please answer all questions before submitting.");
             return;
         }
+        if (!user) {
+            alert("User not logged in");
+            return;
+        }
         setSubmitting(true);
         try {
-            // In a real scenario we post to backend
-            // await axios.post(`/api/quiz/${courseId}`, { answers });
-
-            // For instant UI demo feedback, we evaluate here as well
             let correctCount = 0;
             questions.forEach(q => {
                 if (answers[q.id] === q.correct_answer) {
@@ -58,6 +67,41 @@ export default function Quiz() {
                 }
             });
             const score = Math.round((correctCount / questions.length) * 100);
+
+            // 1. Save result to database
+            const { error: resultErr } = await supabase
+                .from('QuizResult')
+                .insert({
+                    user_id: user.id,
+                    course_id: courseId,
+                    score_percentage: score
+                });
+            if (resultErr) throw resultErr;
+
+            // 2. Fetch course userTopics
+            const { data: topics, error: topicsErr } = await supabase
+                .from('UserTopic')
+                .select('*')
+                .eq('user_id', user.id)
+                .eq('course_id', courseId)
+                .eq('is_archived', false);
+            if (topicsErr) throw topicsErr;
+
+            // 3. Update mastery level for topics
+            if (topics && topics.length > 0) {
+                const eta = 0.2;
+                const Q_i = score / 100;
+                const updatePromises = topics.map((t: any) => {
+                    const M_t = t.mastery_level || 0;
+                    const M_next = Math.max(0, Math.min(1, M_t + eta * (Q_i - M_t)));
+                    return supabase
+                        .from('UserTopic')
+                        .update({ mastery_level: M_next })
+                        .eq('id', t.id);
+                });
+                await Promise.all(updatePromises);
+            }
+
             setResult({ score, correct: correctCount, total: questions.length });
         } catch (error) {
             console.error(error);

@@ -1,7 +1,7 @@
 import { useState, useContext } from 'react';
 import { Link, useNavigate } from 'react-router-dom';
 import { useForm as useHookForm } from 'react-hook-form';
-import axios from 'axios';
+import { supabase } from '../supabaseClient';
 import { AuthContext } from '../context/AuthContext';
 import { Loader2, Eye, EyeOff, Mail, Lock } from 'lucide-react';
 import AuthLayout from '../components/layout/AuthLayout';
@@ -18,15 +18,38 @@ export default function Login() {
         setIsSubmitting(true);
         setErrorMsg('');
         try {
-            const res = await axios.post('/api/auth/login', data);
-            login(res.data.token, res.data.user);
-            if (res.data.user.onboarding_stage !== 'COMPLETE') {
-                navigate('/onboarding');
-            } else {
-                navigate('/dashboard');
+            const { data: authData, error } = await supabase.auth.signInWithPassword({
+                email: data.email,
+                password: data.password,
+            });
+
+            if (error) {
+                setErrorMsg(error.message);
+                return;
+            }
+
+            if (authData.user) {
+                const { data: profile, error: profileError } = await supabase
+                    .from('User')
+                    .select('*')
+                    .eq('id', authData.user.id)
+                    .maybeSingle();
+
+                if (profileError || !profile) {
+                    setErrorMsg(profileError?.message || 'Failed to fetch user profile.');
+                    return;
+                }
+
+                login(authData.session?.access_token || '', profile);
+
+                if (profile.onboarding_stage !== 'COMPLETE') {
+                    navigate('/onboarding');
+                } else {
+                    navigate('/dashboard');
+                }
             }
         } catch (err: any) {
-            setErrorMsg(err.response?.data?.message || 'Login failed. Please try again.');
+            setErrorMsg(err.message || 'Login failed. Please try again.');
         } finally {
             setIsSubmitting(false);
         }

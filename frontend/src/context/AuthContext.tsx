@@ -1,6 +1,6 @@
 import { createContext, useState, useEffect } from 'react';
 import type { ReactNode } from 'react';
-import axios from 'axios';
+import { supabase } from '../supabaseClient';
 
 interface User {
     id: string;
@@ -24,61 +24,75 @@ interface AuthContextType {
 
 export const AuthContext = createContext<AuthContextType>({} as AuthContextType);
 
-// Using axios interceptor to attach token implicitly
-axios.interceptors.request.use((config) => {
-    const token = localStorage.getItem('token');
-    if (token) {
-        config.headers.Authorization = `Bearer ${token}`;
-    }
-    return config;
-});
-
 export const AuthProvider = ({ children }: { children: ReactNode }) => {
     const [user, setUser] = useState<User | null>(null);
-    const [token, setToken] = useState<string | null>(localStorage.getItem('token'));
+    const [token, setToken] = useState<string | null>(null);
     const [loading, setLoading] = useState(true);
 
-    useEffect(() => {
-        const fetchUser = async () => {
-            if (!token) {
-                setLoading(false);
-                return;
+    const fetchUserProfile = async (userId: string) => {
+        try {
+            const { data, error } = await supabase
+                .from('User')
+                .select('*, academicProfile:AcademicProfile(*)')
+                .eq('id', userId)
+                .maybeSingle();
+            
+            if (error) {
+                console.error('Error fetching user profile from database:', error);
+                return null;
             }
-            try {
-                const res = await axios.get('/api/auth/me');
-                setUser(res.data);
-            } catch (error) {
-                console.error('Error fetching user', error);
-                localStorage.removeItem('token');
+            return data;
+        } catch (error) {
+            console.error('Exception fetching user profile:', error);
+            return null;
+        }
+    };
+
+    useEffect(() => {
+        // Get initial session
+        supabase.auth.getSession().then(async ({ data: { session } }) => {
+            if (session) {
+                setToken(session.access_token);
+                const profile = await fetchUserProfile(session.user.id);
+                setUser(profile);
+            }
+            setLoading(false);
+        });
+
+        // Listen for auth changes
+        const { data: { subscription } } = supabase.auth.onAuthStateChange(async (_event, session) => {
+            if (session) {
+                setToken(session.access_token);
+                const profile = await fetchUserProfile(session.user.id);
+                setUser(profile);
+            } else {
                 setToken(null);
                 setUser(null);
-            } finally {
-                setLoading(false);
             }
+            setLoading(false);
+        });
+
+        return () => {
+            subscription.unsubscribe();
         };
-        fetchUser();
-    }, [token]);
+    }, []);
 
     const login = (newToken: string, newUser: User) => {
-        localStorage.setItem('token', newToken);
         setToken(newToken);
         setUser(newUser);
     };
 
-    const logout = () => {
-        localStorage.removeItem('token');
-        localStorage.removeItem('lastActivity');
+    const logout = async () => {
+        await supabase.auth.signOut();
         setToken(null);
         setUser(null);
     };
 
     const reloadUser = async () => {
-        if (!token) return;
-        try {
-            const res = await axios.get('/api/auth/me');
-            setUser(res.data);
-        } catch (error) {
-            console.error('Error reloading user', error);
+        const { data: { session } } = await supabase.auth.getSession();
+        if (session) {
+            const profile = await fetchUserProfile(session.user.id);
+            setUser(profile);
         }
     };
 

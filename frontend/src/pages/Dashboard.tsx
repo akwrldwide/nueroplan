@@ -1,5 +1,5 @@
 import { useState, useEffect, useContext } from 'react';
-import axios from 'axios';
+import { supabase } from '../supabaseClient';
 import { useNavigate } from 'react-router-dom';
 import { AuthContext } from '../context/AuthContext';
 import { CalendarDays, BrainCircuit, RefreshCw, X, User as UserIcon, Activity, ChevronDown, Settings, LogOut, AlertTriangle, BookOpen, Clock } from 'lucide-react';
@@ -69,22 +69,42 @@ export default function Dashboard() {
     };
 
     const handleBulkSaveExams = async () => {
-        const payload = Object.keys(examDrafts).map(id => ({
-            courseId: id,
-            examDate: examDrafts[id].date,
-            examTime: examDrafts[id].time,
-            examVenue: examDrafts[id].venue,
-            examDuration: examDrafts[id].duration,
-            examInstructions: examDrafts[id].instructions
-        }));
+        if (!user) return;
         try {
-            await axios.post('/api/courses/bulk-update', { courses: payload });
+            const today = new Date();
+            today.setHours(0, 0, 0, 0);
+
+            const updatePromises = Object.keys(examDrafts).map(async (id) => {
+                const draft = examDrafts[id];
+                let parsedDate = null;
+                if (draft.date) {
+                    parsedDate = new Date(draft.date);
+                    if (parsedDate < today) {
+                        throw new Error('Exam dates cannot be in the past');
+                    }
+                }
+                return supabase
+                    .from('UserCourse')
+                    .update({
+                        exam_date: parsedDate ? parsedDate.toISOString() : null,
+                        exam_time: draft.time || null,
+                        exam_venue: draft.venue || null,
+                        exam_duration: draft.duration ? parseInt(draft.duration) : 180,
+                        exam_instructions: draft.instructions || null
+                    })
+                    .eq('id', id);
+            });
+            
+            const results = await Promise.all(updatePromises);
+            for (const res of results) {
+                if (res.error) throw res.error;
+            }
+
             setIsBulkExamModalOpen(false);
             setShowRegenerateModal(true);
-            const coursesRes = await axios.get('/api/courses');
-            setCourses(coursesRes.data);
-        } catch (e) {
-            alert("Failed to save exam dates");
+            fetchDashboardData();
+        } catch (e: any) {
+            alert(e.message || "Failed to save exam dates");
         }
     };
 
@@ -98,40 +118,262 @@ export default function Dashboard() {
     };
 
     const fetchDashboardData = async () => {
+        if (!user) return;
         setLoading(true);
         try {
-            const [statsRes, planRes, coursesRes, topicsRes, academicStatusRes, availabilityRes] = await Promise.all([
-                axios.get('/api/progress/dashboard'),
-                axios.get('/api/plan/current').catch(() => ({ data: null })),
-                axios.get('/api/courses'),
-                axios.get('/api/topics'),
-                axios.get('/api/academic/status'),
-                axios.get('/api/availability')
-            ]);
-            setStats(statsRes.data);
-            setPlan(planRes.data);
-            setCourses(coursesRes.data);
-            setAcademicStatus(academicStatusRes.data);
+            // 1. Fetch User details for current stored streak
+            const { data: userData, error: userErr } = await supabase
+                .from('User')
+                .select('*')
+                .eq('id', user.id)
+                .single();
+            if (userErr) throw userErr;
+            let currentStreak = userData.streak_count || 0;
 
-            if (availabilityRes.data && availabilityRes.data.length > 0) {
-                setGlobalTime({
-                    start_time: availabilityRes.data[0].start_time,
-                    end_time: availabilityRes.data[0].end_time
+            // 2. Fetch UserCourses
+            const { data: userCoursesData, error: coursesErr } = await supabase
+                .from('UserCourse')
+                .select('*, course:Course(*, courseTopics:CourseTopic(*))')
+                .eq('user_id', user.id)
+                .eq('is_archived', false);
+            if (coursesErr) throw coursesErr;
+
+            const enrolledCourses = userCoursesData || [];
+
+            // 3. Fetch current plan
+            const { data: recentPlans, error: planErr } = await supabase
+                .from('StudyPlan')
+                .select('*')
+                .eq('user_id', user.id)
+                .order('generated_date', { ascending: false })
+                .limit(1);
+            if (planErr) throw planErr;
+            const currentPlan = recentPlans?.[0] || null;
+
+            // 4. Fetch study sessions for streak calculation & plan sessions
+            const todayStart = new Date();
+            todayStart.setHours(0, 0, 0, 0);
+
+            let allPastAndCurrentSessions: any[] = [];
+            if (currentPlan) {
+                const { data: sessionsData, error: sessErr } = await supabase
+                    .from('StudySession')
+                    .select('*, topic:UserTopic(*, course:Course(*)), studyPlan:StudyPlan(*)')
+                    .eq('topic.user_id', user.id);
+                if (sessErr) throw sessErr;
+                
+                allPastAndCurrentSessions = (sessionsData || []).filter((s: any) => {
+                    return s.study_plan_id === currentPlan.id || (s.session_date && new Date(s.session_date) < todayStart);
                 });
             }
 
-            // Neuro Insight deactivated per requirement 
-            // axios.get('/api/ai/motivation')
-            //     .then(aiRes => {
-            //         if (aiRes.data?.insight) {
-            //             setStats((prev: any) => prev ? { ...prev, aiInsight: aiRes.data.insight } : prev);
-            //         }
-            //     })
-            //     .catch(err => console.error("AI Insight fetch failed", err));
+            // Deduplicate legacy sessions & build days map
+            const dateStrMaxPlanDate = new Map();
+            for (const s of allPastAndCurrentSessions) {
+                if (!s.session_date) continue;
+                const dStr = new Date(s.session_date).toISOString().split('T')[0];
+                const cMax = dateStrMaxPlanDate.get(dStr) || new Date(0);
+                const sPlanDate = s.studyPlan ? new Date(s.studyPlan.generated_date) : new Date(0);
+                if (sPlanDate > cMax) {
+                    dateStrMaxPlanDate.set(dStr, sPlanDate);
+                }
+            }
 
-            if (user?.onboarding_stage === 'COMPLETE' && coursesRes.data.length > 0 && topicsRes.data.length === 0) {
+            const activeSessions = allPastAndCurrentSessions.filter(s => {
+                if (!s.session_date) return false;
+                if (currentPlan && s.study_plan_id === currentPlan.id) return true;
+                if (s.completed) return true;
+                const dStr = new Date(s.session_date).toISOString().split('T')[0];
+                const maxPlanDate = dateStrMaxPlanDate.get(dStr);
+                const sPlanDate = s.studyPlan ? new Date(s.studyPlan.generated_date) : new Date(0);
+                if (sPlanDate.getTime() === maxPlanDate?.getTime()) return true;
+                return false;
+            });
+
+            // Group by day for streak
+            const sessionsByDay = new Map();
+            for (const s of activeSessions) {
+                const dStr = new Date(s.session_date).toISOString().split('T')[0];
+                if (!sessionsByDay.has(dStr)) sessionsByDay.set(dStr, []);
+                sessionsByDay.get(dStr).push(s);
+            }
+
+            // Calculate streak walk back
+            let calculatedStreak = 0;
+            let currentDateWalker = new Date(todayStart);
+
+            const yToday = currentDateWalker.getFullYear();
+            const mToday = String(currentDateWalker.getMonth() + 1).padStart(2, '0');
+            const dToday = String(currentDateWalker.getDate()).padStart(2, '0');
+            const todayStr = `${yToday}-${mToday}-${dToday}`;
+            
+            const todayS = sessionsByDay.get(todayStr);
+            if (todayS && todayS.length > 0) {
+                const allCompleted = todayS.every((s: any) => s.completed);
+                if (allCompleted) calculatedStreak++;
+            }
+
+            currentDateWalker.setDate(currentDateWalker.getDate() - 1);
+            while (true) {
+                const yW = currentDateWalker.getFullYear();
+                const mW = String(currentDateWalker.getMonth() + 1).padStart(2, '0');
+                const dW = String(currentDateWalker.getDate()).padStart(2, '0');
+                const dStr = `${yW}-${mW}-${dW}`;
+
+                const daySessions = sessionsByDay.get(dStr);
+                if (!daySessions || daySessions.length === 0) {
+                    // Rest day
+                } else {
+                    const allCompleted = daySessions.every((s: any) => s.completed);
+                    if (allCompleted) {
+                        calculatedStreak++;
+                    } else {
+                        break;
+                    }
+                }
+
+                currentDateWalker.setDate(currentDateWalker.getDate() - 1);
+                const diffDays = Math.floor((todayStart.getTime() - currentDateWalker.getTime()) / (1000 * 60 * 60 * 24));
+                if (diffDays > 365) break; 
+            }
+
+            // Sync streak to database if mismatch
+            if (calculatedStreak !== currentStreak) {
+                await supabase
+                    .from('User')
+                    .update({ streak_count: calculatedStreak })
+                    .eq('id', user.id);
+                currentStreak = calculatedStreak;
+            }
+
+            // 5. Fetch progress logs
+            const { data: progressLogs, error: logErr } = await supabase
+                .from('ProgressLog')
+                .select('*, userCourse:UserCourse(*, course:Course(*))')
+                .eq('user_id', user.id)
+                .eq('is_archived', false);
+            if (logErr) throw logErr;
+
+            // 6. Stats calculation
+            const totalCourses = enrolledCourses.length;
+            const highRiskCourses = enrolledCourses.filter(c => c.course?.difficulty >= 4).length;
+
+            let nextExam = null;
+            let daysToNextExam = null;
+            const futureExams = enrolledCourses.filter(c => c.exam_date && new Date(c.exam_date) > new Date());
+            if (futureExams.length > 0) {
+                const sortedExams = [...futureExams].sort((a, b) => new Date(a.exam_date).getTime() - new Date(b.exam_date).getTime());
+                nextExam = sortedExams[0];
+                const diffTime = Math.abs(new Date(nextExam.exam_date).getTime() - new Date().getTime());
+                daysToNextExam = Math.ceil(diffTime / (1000 * 60 * 60 * 24));
+            }
+
+            // AI Insight Logic
+            const { data: profile } = await supabase
+                .from('AcademicProfile')
+                .select('*')
+                .eq('user_id', user.id)
+                .maybeSingle();
+
+            let aiInsight = "The engine is actively balancing your study week based on dynamic weightings. Keep up the consistency.";
+            const todayNum = new Date().getTime();
+            let upcomingExamsCount = 0;
+            for (const c of enrolledCourses) {
+                if (c.exam_date) {
+                    const diffDays = (new Date(c.exam_date).getTime() - todayNum) / (1000 * 60 * 60 * 24);
+                    if (diffDays >= 0 && diffDays <= 7) upcomingExamsCount++;
+                }
+            }
+            const isExamCluster = upcomingExamsCount >= 3;
+
+            if (profile) {
+                if (isExamCluster) {
+                    aiInsight = "Exam Cluster Detected — Intensified Preparation Mode Activated. Temporary weight multipliers have been applied.";
+                } else if (highRiskCourses >= 2) {
+                    aiInsight = `${highRiskCourses} courses are flagged high-risk due to difficulty scaling and proximity. Over-allocation is active.`;
+                } else if (futureExams.length > 0 && daysToNextExam && daysToNextExam < 14 && nextExam?.course) {
+                    aiInsight = `Exam in ${nextExam.course.code} is approaching in ${daysToNextExam} days. Priority weight has been increased accordingly.`;
+                } else if (profile.current_cgpa && profile.current_cgpa < 3.5 && profile.academic_goal === 'First Class') {
+                    aiInsight = "To reach First Class range, additional emphasis has been placed on your core courses.";
+                } else if (profile.current_cgpa && profile.current_cgpa < 3.0 && profile.academic_goal === 'Second Class Upper') {
+                    aiInsight = "To reach Second Class Upper range, additional emphasis has been placed on your core courses.";
+                }
+            }
+
+            setStats({
+                streak_count: currentStreak,
+                totalCourses,
+                highRiskCourses,
+                nextExam: nextExam ? { title: nextExam.course?.title || nextExam.course_id, days: daysToNextExam } : null,
+                progressLogs: progressLogs || [],
+                aiInsight,
+                profile
+            });
+
+            // 7. Sort activeSessions chronologically
+            activeSessions.sort((a, b) => {
+                const dateA = new Date(a.session_date).getTime();
+                const dateB = new Date(b.session_date).getTime();
+                if (dateA !== dateB) return dateA - dateB;
+
+                const timeA = a.start_time.split(':').map(Number);
+                const timeB = b.start_time.split(':').map(Number);
+                if (timeA[0] !== timeB[0]) return timeA[0] - timeB[0];
+                return timeA[1] - timeB[1];
+            });
+
+            // 8. Academic Session & Semester Break checking
+            const { data: activeSessionData } = await supabase
+                .from('AcademicSession')
+                .select('*')
+                .eq('user_id', user.id)
+                .order('start_date', { ascending: false })
+                .limit(1);
+            
+            const activeSession = activeSessionData?.[0] || null;
+            const today = new Date();
+            const isSemesterBreak = Boolean(activeSession && activeSession.end_date && today > new Date(activeSession.end_date));
+
+            if (currentPlan) {
+                setPlan({
+                    ...currentPlan,
+                    sessions: activeSessions,
+                    isSemesterBreak
+                });
+            } else {
+                setPlan(null);
+            }
+
+            setCourses(enrolledCourses);
+            setAcademicStatus({
+                isComplete: isSemesterBreak,
+                currentSession: activeSession
+            });
+
+            // 9. Study Availability
+            const { data: availRes } = await supabase
+                .from('StudyAvailability')
+                .select('*')
+                .eq('user_id', user.id);
+
+            if (availRes && availRes.length > 0) {
+                setGlobalTime({
+                    start_time: availRes[0].start_time,
+                    end_time: availRes[0].end_time
+                });
+            }
+
+            // 10. Check if onboarding stage incomplete or needs userTopic migration
+            const { data: topicsData } = await supabase
+                .from('UserTopic')
+                .select('*')
+                .eq('user_id', user.id)
+                .limit(1);
+
+            if (user?.onboarding_stage === 'COMPLETE' && enrolledCourses.length > 0 && (!topicsData || topicsData.length === 0)) {
                 setShowMigrationModal(true);
             }
+
         } catch (error) {
             console.error("Failed fetching dashboard", error);
         } finally {
@@ -140,45 +382,68 @@ export default function Dashboard() {
     };
 
     useEffect(() => {
-        fetchDashboardData();
-    }, []);
+        if (user) {
+            fetchDashboardData();
+        }
+    }, [user]);
 
     const handleRecalculate = async (forceFullSemester: any = false) => {
         const isForce = typeof forceFullSemester === 'boolean' ? forceFullSemester : false;
         setIsRecalculating(true);
         try {
-            const res = await axios.post('/api/plan/generate', { fullRecalculate: true, forceFullSemester: isForce });
-            if (res.data && res.data.notification) {
-                setPlanNotification(res.data.notification);
+            const { data, error } = await supabase.functions.invoke('generate-plan', {
+                body: { fullRecalculate: true, forceFullSemester: isForce }
+            });
+            if (error) throw error;
+            if (data && data.notification) {
+                setPlanNotification(data.notification);
             }
             await fetchDashboardData();
         } catch (error: any) {
             console.error(error);
-            const errorMsg = error.response?.data?.message || error.message || "Failed to recalculate plan";
-            alert(`Error generating plan: ${errorMsg}`);
+            alert(`Error generating plan: ${error.message || "Failed to recalculate plan"}`);
         } finally {
             setIsRecalculating(false);
         }
     };
 
     const handleProgressSemester = async () => {
+        if (!user) return;
         try {
-            await axios.post('/api/academic/progress');
+            const { error } = await supabase.rpc('progress_semester', { user_id_param: user.id });
+            if (error) throw error;
             confetti({ particleCount: 150, spread: 70, origin: { y: 0.6 } });
             if (reloadUser) await reloadUser();
             navigate('/onboarding');
         } catch (e) {
+            console.error(e);
             alert("Failed to progress to next semester");
         }
     };
 
     const handleCompleteSession = async (sessionId: string) => {
-        // Find current status for optimistic UI
+        if (!user) return;
+
+        // Fetch session details first
+        const { data: sessionData, error: findErr } = await supabase
+            .from('StudySession')
+            .select('*, topic:UserTopic(*)')
+            .eq('id', sessionId)
+            .single();
+
+        if (findErr || !sessionData) {
+            alert('Session not found.');
+            return;
+        }
+
+        const newStatus = !sessionData.completed;
+
+        // Optimistically update frontend state
         setPlan((prev: any) => {
             if (!prev || !prev.sessions) return prev;
             const updatedSessions = prev.sessions.map((s: any) => {
                  if (s.id === sessionId) {
-                     return { ...s, completed: !s.completed };
+                     return { ...s, completed: newStatus };
                  }
                  return s;
             });
@@ -186,13 +451,113 @@ export default function Dashboard() {
         });
 
         try {
-            const dateStr = selectedDate.toISOString();
-            const res = await axios.post('/api/progress/session/complete', { 
-                session_id: sessionId,
-                current_date: dateStr
-            });
-            
-            if (res.data.streak_incremented) {
+            // 1. Update StudySession
+            const { error: updateSessErr } = await supabase
+                .from('StudySession')
+                .update({ completed: newStatus })
+                .eq('id', sessionId);
+            if (updateSessErr) throw updateSessErr;
+
+            // 2. Resolve userCourse
+            const { data: userCourse, error: ucErr } = await supabase
+                .from('UserCourse')
+                .select('*')
+                .eq('user_id', user.id)
+                .eq('course_id', sessionData.topic.course_id)
+                .eq('is_archived', false)
+                .maybeSingle();
+
+            if (ucErr) throw ucErr;
+
+            if (userCourse) {
+                // Find or create ProgressLog
+                const { data: log, error: logErr } = await supabase
+                    .from('ProgressLog')
+                    .select('*')
+                    .eq('user_id', user.id)
+                    .eq('user_course_id', userCourse.id)
+                    .eq('is_archived', false)
+                    .maybeSingle();
+
+                if (logErr) throw logErr;
+
+                if (log) {
+                    const hourChange = newStatus ? sessionData.allocated_hours : -sessionData.allocated_hours;
+                    const { error: logUpdateErr } = await supabase
+                        .from('ProgressLog')
+                        .update({ study_hours_logged: Math.max(0, (log.study_hours_logged || 0) + hourChange) })
+                        .eq('id', log.id);
+                    if (logUpdateErr) throw logUpdateErr;
+                } else if (newStatus) {
+                    const { error: logCreateErr } = await supabase
+                        .from('ProgressLog')
+                        .insert({
+                            user_id: user.id,
+                            user_course_id: userCourse.id,
+                            study_hours_logged: sessionData.allocated_hours,
+                            consistency_score: 1.0
+                        });
+                    if (logCreateErr) throw logCreateErr;
+                }
+            }
+
+            // 3. Streak Increment Logic
+            let streak_incremented = false;
+            const currentSessionDateStr = sessionData.session_date ? new Date(sessionData.session_date).toISOString().split('T')[0] : '';
+
+            // Fetch today's study sessions for this plan & date
+            const { data: todaysSessions, error: todayErr } = await supabase
+                .from('StudySession')
+                .select('*')
+                .eq('study_plan_id', sessionData.study_plan_id)
+                .eq('session_date', currentSessionDateStr);
+
+            if (todayErr) throw todayErr;
+
+            if (todaysSessions && todaysSessions.length > 0) {
+                const totalCount = todaysSessions.length;
+                const completedCount = todaysSessions.filter(s => s.completed).length;
+
+                // Fetch current User state
+                const { data: userObj, error: userFetchErr } = await supabase
+                    .from('User')
+                    .select('*')
+                    .eq('id', user.id)
+                    .single();
+                if (userFetchErr) throw userFetchErr;
+
+                const lastUpdateStr = userObj.streak_last_updated ? new Date(userObj.streak_last_updated).toISOString().split('T')[0] : '';
+
+                if (newStatus && totalCount === completedCount) {
+                    if (lastUpdateStr !== currentSessionDateStr && currentSessionDateStr !== '') {
+                        const { error: userUpdateErr } = await supabase
+                            .from('User')
+                            .update({
+                                streak_count: (userObj.streak_count || 0) + 1,
+                                streak_last_updated: sessionData.session_date
+                            })
+                            .eq('id', user.id);
+                        if (userUpdateErr) throw userUpdateErr;
+                        streak_incremented = true;
+                    }
+                } else if (!newStatus && (completedCount === totalCount - 1)) {
+                    if (lastUpdateStr === currentSessionDateStr && currentSessionDateStr !== '') {
+                        const fallbackDate = new Date(sessionData.session_date);
+                        fallbackDate.setDate(fallbackDate.getDate() - 1);
+
+                        const { error: userUpdateErr } = await supabase
+                            .from('User')
+                            .update({
+                                streak_count: Math.max(0, (userObj.streak_count || 0) - 1),
+                                streak_last_updated: fallbackDate.toISOString()
+                            })
+                            .eq('id', user.id);
+                        if (userUpdateErr) throw userUpdateErr;
+                    }
+                }
+            }
+
+            if (streak_incremented) {
                 confetti({
                     particleCount: 150,
                     spread: 70,
@@ -200,13 +565,10 @@ export default function Dashboard() {
                 });
             }
             fetchDashboardData();
-        } catch (e: any) {
-            fetchDashboardData(); // Revert on failure
-            if (e.response && e.response.data && e.response.data.message) {
-                alert(e.response.data.message);
-            } else {
-                alert("Failed to mark session complete");
-            }
+        } catch (e) {
+            console.error(e);
+            fetchDashboardData(); // Revert
+            alert("Failed to mark session complete");
         }
     };
 
@@ -218,32 +580,67 @@ export default function Dashboard() {
     };
 
     const handleSaveSettings = async () => {
+        if (!user) return;
         try {
-            await axios.put('/api/profile/settings', { 
-                post_exam_preference: studyPref,
-                allow_morning_revision: allowMorningRevision,
-                preferred_focus_window: preferredFocusWindow,
-                current_cgpa: cgpa === '' ? null : cgpa
-            });
+            const { error: userErr } = await supabase
+                .from('User')
+                .update({ 
+                    post_exam_preference: studyPref,
+                    allow_morning_revision: allowMorningRevision,
+                    preferred_focus_window: preferredFocusWindow
+                })
+                .eq('id', user.id);
+            if (userErr) throw userErr;
+
+            const { data: profile } = await supabase
+                .from('AcademicProfile')
+                .select('*')
+                .eq('user_id', user.id)
+                .maybeSingle();
+
+            if (profile) {
+                const { error: profErr } = await supabase
+                    .from('AcademicProfile')
+                    .update({ current_cgpa: cgpa === '' ? null : parseFloat(cgpa as any) })
+                    .eq('user_id', user.id);
+                if (profErr) throw profErr;
+            }
+
             if (reloadUser) await reloadUser();
             setIsSettingsModalOpen(false);
             await handleRecalculate();
         } catch(e) {
+            console.error(e);
             alert("Failed to save settings");
         }
     };
 
     const handleSaveStudyTime = async () => {
+        if (!user) return;
         try {
+            // Delete existing study availability
+            const { error: deleteErr } = await supabase
+                .from('StudyAvailability')
+                .delete()
+                .eq('user_id', user.id);
+            if (deleteErr) throw deleteErr;
+
             const availabilities = ['Mon', 'Tue', 'Wed', 'Thu', 'Fri', 'Sat', 'Sun'].map(day => ({
+                user_id: user.id,
                 day_of_week: day,
                 start_time: globalTime.start_time,
                 end_time: globalTime.end_time
             }));
-            await axios.post('/api/availability', { availabilities });
+
+            const { error: insertErr } = await supabase
+                .from('StudyAvailability')
+                .insert(availabilities);
+            if (insertErr) throw insertErr;
+
             setIsStudyTimeModalOpen(false);
             await handleRecalculate();
         } catch (e) {
+            console.error(e);
             alert("Failed to save study time");
         }
     };
@@ -469,10 +866,15 @@ export default function Dashboard() {
                                     <button 
                                        onClick={async () => {
                                            try {
-                                               await axios.post(`/api/courses/${c.id}/mark-completed`);
+                                               const { error } = await supabase
+                                                   .from('UserCourse')
+                                                   .update({ is_completed: true })
+                                                   .eq('id', c.id);
+                                               if (error) throw error;
                                                confetti({ particleCount: 100, spread: 60, origin: { y: 0.6 }, colors: ['#10B981', '#047857'] });
                                                await handleRecalculate();
                                            } catch(e) {
+                                               console.error(e);
                                                alert("Failed marking exam completed");
                                            }
                                        }}

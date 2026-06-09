@@ -1,7 +1,7 @@
 import { useState, useContext } from 'react';
 import { Link, useNavigate } from 'react-router-dom';
 import { useForm } from 'react-hook-form';
-import axios from 'axios';
+import { supabase } from '../supabaseClient';
 import { AuthContext } from '../context/AuthContext';
 import { Loader2, Eye, EyeOff, Mail, Lock, User } from 'lucide-react';
 import AuthLayout from '../components/layout/AuthLayout';
@@ -18,11 +18,47 @@ export default function Register() {
         setIsSubmitting(true);
         setErrorMsg('');
         try {
-            const res = await axios.post('/api/auth/register', data);
-            login(res.data.token, res.data.user);
-            navigate('/onboarding'); // Redirect straight to onboarding after register
+            const { data: authData, error } = await supabase.auth.signUp({
+                email: data.email,
+                password: data.password,
+                options: {
+                    data: {
+                        name: data.name
+                    }
+                }
+            });
+
+            if (error) {
+                setErrorMsg(error.message);
+                return;
+            }
+
+            if (authData.user) {
+                // Poll public User table to wait for sync trigger
+                let profile = null;
+                for (let i = 0; i < 5; i++) {
+                    const { data: pData } = await supabase
+                        .from('User')
+                        .select('*')
+                        .eq('id', authData.user.id)
+                        .maybeSingle();
+                    if (pData) {
+                        profile = pData;
+                        break;
+                    }
+                    await new Promise(r => setTimeout(r, 500));
+                }
+
+                if (!profile) {
+                    setErrorMsg("Account created, but database sync is taking longer than expected. Please go to Login and sign in.");
+                    return;
+                }
+
+                login(authData.session?.access_token || '', profile);
+                navigate('/onboarding');
+            }
         } catch (err: any) {
-            setErrorMsg(err.response?.data?.message || 'Registration failed. Please try again.');
+            setErrorMsg(err.message || 'Registration failed. Please try again.');
         } finally {
             setIsSubmitting(false);
         }

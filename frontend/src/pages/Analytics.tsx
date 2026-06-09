@@ -1,29 +1,63 @@
-import { useState, useEffect } from 'react';
-import axios from 'axios';
+import { useState, useEffect, useContext } from 'react';
+import { supabase } from '../supabaseClient';
+import { AuthContext } from '../context/AuthContext';
 import { Target, TrendingUp, AlertCircle, CheckCircle, Flame } from 'lucide-react';
 import { AreaChart, Area, XAxis, YAxis, CartesianGrid, Tooltip, ResponsiveContainer } from 'recharts';
 
 export default function Analytics() {
+  const { user } = useContext(AuthContext);
   const [mistakes, setMistakes] = useState<any[]>([]);
   const [topics, setTopics] = useState<any[]>([]);
   const [loading, setLoading] = useState(true);
 
   useEffect(() => {
-    fetchData();
-  }, []);
+    if (user) {
+      fetchData();
+    }
+  }, [user]);
 
   const fetchData = async () => {
+    if (!user) return;
     try {
       const [mistakesRes, topicsRes] = await Promise.all([
-        axios.get('/api/mistakes', {
-          headers: { Authorization: `Bearer ${localStorage.getItem('token')}` }
-        }),
-        axios.get('/api/topics', {
-          headers: { Authorization: `Bearer ${localStorage.getItem('token')}` }
-        })
+        supabase
+          .from('MistakeLog')
+          .select('*, userTopic:UserTopic(*, course:Course(*))')
+          .eq('user_id', user.id)
+          .eq('is_archived', false)
+          .order('created_at', { ascending: false }),
+        supabase
+          .from('UserTopic')
+          .select('*, course:Course(*)')
+          .eq('user_id', user.id)
+          .eq('is_archived', false)
       ]);
-      setMistakes(mistakesRes.data);
-      setTopics(topicsRes.data);
+
+      if (mistakesRes.error) throw mistakesRes.error;
+      if (topicsRes.error) throw topicsRes.error;
+
+      const mappedMistakes = (mistakesRes.data || []).map((m: any) => ({
+        ...m,
+        topic: m.userTopic ? {
+          name: m.userTopic.topic_name,
+          course: m.userTopic.course ? {
+            course_code: m.userTopic.course.code
+          } : null
+        } : null
+      }));
+
+      const mappedTopics = (topicsRes.data || []).map((t: any) => {
+        let mastery = 'average';
+        if (t.mastery_level < 0.4) mastery = 'weak';
+        else if (t.mastery_level > 0.7) mastery = 'strong';
+        return {
+          ...t,
+          mastery
+        };
+      });
+
+      setMistakes(mappedMistakes);
+      setTopics(mappedTopics);
     } catch (e) {
       console.error(e);
     } finally {

@@ -1,6 +1,6 @@
 import { useState, useEffect } from 'react';
 import { useNavigate, useLocation } from 'react-router-dom';
-import axios from 'axios';
+import { supabase } from '../supabaseClient';
 
 import { User, BookOpen, Clock, CheckCircle, Loader2, Plus, Edit2, X, Trash2, List } from 'lucide-react';
 
@@ -103,10 +103,17 @@ export default function Onboarding() {
 
     const loadUserCoursesForTopics = async () => {
         try {
-            const res = await axios.get('/api/courses');
-            setUserCourses(res.data);
+            const { data, error } = await supabase
+                .from('UserCourse')
+                .select('*, course:Course(*, courseTopics:CourseTopic(*))')
+                .eq('user_id', user?.id)
+                .eq('is_archived', false);
+            
+            if (error) throw error;
+
+            setUserCourses(data || []);
             const initialSelected: Record<string, any[]> = {};
-            res.data.forEach((uc: any) => {
+            data?.forEach((uc: any) => {
                 // Pre-select all default topics initially to speed up setup for the user
                 initialSelected[uc.course_id] = (uc.course?.courseTopics || []).map((ct: any) => ({
                     course_id: uc.course_id,
@@ -139,14 +146,29 @@ export default function Onboarding() {
             case 'COURSES':
                 setStep(2);
                 if (courses.length === 0) {
-                    axios.get('/api/profile').then(res => {
-                        const profile = res.data;
-                        if (profile && profile.curriculum_type === 'BMAS') {
-                            axios.get(`/api/courses/curriculum?program=${profile.program}&level=${profile.level}&semester=${profile.semester}`)
-                                 .then(cRes => setCourses(cRes.data))
-                                 .catch(e => console.error(e));
+                    supabase.from('AcademicProfile').select('*').eq('user_id', user.id).maybeSingle().then(async ({ data: profile, error }) => {
+                        if (error) {
+                            console.error(error);
+                            return;
                         }
-                    }).catch(e => console.error(e));
+                        if (profile && profile.curriculum_type === 'BMAS') {
+                            const { data: curriculum, error: currErr } = await supabase
+                                .from('Course')
+                                .select('*, program:Program!inner(name), courseTopics:CourseTopic(*)')
+                                .eq('program.name', profile.program)
+                                .eq('level', parseInt(profile.level))
+                                .eq('semester', parseInt(profile.semester))
+                                .order('level', { ascending: true })
+                                .order('semester', { ascending: true })
+                                .order('code', { ascending: true });
+
+                            if (currErr) {
+                                console.error(currErr);
+                                return;
+                            }
+                            setCourses(curriculum || []);
+                        }
+                    });
                 }
                 break;
             case 'TOPICS':
@@ -177,28 +199,89 @@ export default function Onboarding() {
 
         setIsSubmitting(true);
         try {
-            await axios.post('/api/profile', profileData);
+            // Check if profile exists first
+            const { data: existingProfile } = await supabase
+                .from('AcademicProfile')
+                .select('id')
+                .eq('user_id', user?.id)
+                .maybeSingle();
+
+            if (existingProfile) {
+                if (profileData.curriculum_type === 'BMAS') {
+                    const { data: curriculum, error: currErr } = await supabase
+                        .from('Course')
+                        .select('*, program:Program!inner(name), courseTopics:CourseTopic(*)')
+                        .eq('program.name', profileData.program)
+                        .eq('level', parseInt(profileData.level))
+                        .eq('semester', parseInt(profileData.semester))
+                        .order('level', { ascending: true })
+                        .order('semester', { ascending: true })
+                        .order('code', { ascending: true });
+                    if (currErr) throw currErr;
+                    setCourses(curriculum || []);
+                }
+                setStep(2);
+                return;
+            }
+
+            // Create profile
+            const { error: profileErr } = await supabase
+                .from('AcademicProfile')
+                .insert({
+                    user_id: user?.id,
+                    program: profileData.program,
+                    level: parseInt(profileData.level),
+                    semester: parseInt(profileData.semester),
+                    curriculum_type: profileData.curriculum_type,
+                    current_cgpa: profileData.current_cgpa ? parseFloat(profileData.current_cgpa) : null,
+                    academic_goal: profileData.academic_goal
+                });
+            if (profileErr) throw profileErr;
+
+            // Create AcademicSession
+            const currentYear = new Date().getFullYear();
+            let startDate;
+            const semInt = parseInt(profileData.semester);
+            if (semInt === 1) {
+                startDate = new Date(currentYear, 0, 1).toISOString();
+            } else {
+                startDate = new Date(currentYear, 6, 1).toISOString();
+            }
+
+            const { error: sessionErr } = await supabase
+                .from('AcademicSession')
+                .insert({
+                    user_id: user?.id,
+                    semester: semInt === 1 ? '1st Semester' : '2nd Semester',
+                    level: parseInt(profileData.level),
+                    start_date: startDate
+                });
+            if (sessionErr) throw sessionErr;
+
+            // Update user onboarding stage
+            const { error: userErr } = await supabase
+                .from('User')
+                .update({ onboarding_stage: 'COURSES' })
+                .eq('id', user?.id);
+            if (userErr) throw userErr;
 
             if (profileData.curriculum_type === 'BMAS') {
-                const res = await axios.get(`/api/courses/curriculum?program=${profileData.program}&level=${profileData.level}&semester=${profileData.semester}`);
-                setCourses(res.data);
+                const { data: curriculum, error: currErr } = await supabase
+                    .from('Course')
+                    .select('*, program:Program!inner(name), courseTopics:CourseTopic(*)')
+                    .eq('program.name', profileData.program)
+                    .eq('level', parseInt(profileData.level))
+                    .eq('semester', parseInt(profileData.semester))
+                    .order('level', { ascending: true })
+                    .order('semester', { ascending: true })
+                    .order('code', { ascending: true });
+                if (currErr) throw currErr;
+                setCourses(curriculum || []);
             }
             await reloadUser();
         } catch (error: any) {
             console.error(error);
-            if (error.response?.status === 400 && error.response?.data?.message === 'Profile already exists') {
-                try {
-                    if (profileData.curriculum_type === 'BMAS') {
-                        const res = await axios.get(`/api/courses/curriculum?program=${profileData.program}&level=${profileData.level}&semester=${profileData.semester}`);
-                        setCourses(res.data);
-                    }
-                    setStep(2);
-                } catch (innerError: any) {
-                    alert(`Error loading curriculum: ${innerError.response?.data?.message || innerError.message}`);
-                }
-                return;
-            }
-            alert(`Error saving profile: ${error.response?.data?.message || error.message}`);
+            alert(`Error saving profile: ${error.message}`);
         } finally {
             setIsSubmitting(false);
         }
@@ -208,7 +291,34 @@ export default function Onboarding() {
         setIsSubmitting(true);
         try {
             if (courses.length > 0) {
-                await axios.post('/api/courses', { courses });
+                // Delete existing UserCourses
+                const { error: deleteErr } = await supabase
+                    .from('UserCourse')
+                    .delete()
+                    .eq('user_id', user?.id);
+                if (deleteErr) throw deleteErr;
+
+                // Insert new UserCourses
+                const coursesToInsert = courses.map((c: any) => ({
+                    user_id: user?.id,
+                    course_id: c.id,
+                    is_selected: true,
+                    is_completed: false,
+                    is_archived: false,
+                    exam_duration: 180
+                }));
+                const { error: insertErr } = await supabase
+                    .from('UserCourse')
+                    .insert(coursesToInsert);
+                if (insertErr) throw insertErr;
+
+                // Update Onboarding Stage to TOPICS
+                const nextStage = user?.onboarding_stage === 'COMPLETE' ? 'COMPLETE' : 'TOPICS';
+                const { error: userErr } = await supabase
+                    .from('User')
+                    .update({ onboarding_stage: nextStage })
+                    .eq('id', user?.id);
+                if (userErr) throw userErr;
             } else {
                 alert("Please add courses");
                 setIsSubmitting(false);
@@ -278,7 +388,58 @@ export default function Onboarding() {
                 allTopicsToSave = [...allTopicsToSave, ...courseArray];
             });
 
-            await axios.post('/api/topics/save', { topics: allTopicsToSave });
+            // Delete existing UserTopics
+            const { error: deleteErr } = await supabase
+                .from('UserTopic')
+                .delete()
+                .eq('user_id', user?.id);
+            if (deleteErr) throw deleteErr;
+
+            // Fetch active courses
+            const { data: activeCourses, error: coursesErr } = await supabase
+                .from('UserCourse')
+                .select('*')
+                .eq('user_id', user?.id)
+                .eq('is_archived', false);
+            if (coursesErr) throw coursesErr;
+
+            const providedCourseIds = new Set(allTopicsToSave.map(t => t.course_id));
+            const topicsToSave = [...allTopicsToSave];
+
+            activeCourses?.forEach((c: any) => {
+                if (!providedCourseIds.has(c.course_id)) {
+                    topicsToSave.push({
+                        course_id: c.course_id,
+                        topic_name: 'General Study',
+                        course_topic_id: null
+                    });
+                }
+            });
+
+            // Insert new UserTopics
+            const topicsToInsert = topicsToSave.map((t: any) => ({
+                user_id: user?.id,
+                course_id: t.course_id,
+                course_topic_id: t.course_topic_id || null,
+                topic_name: t.topic_name,
+                mastery_level: 0,
+                is_selected: true,
+                is_archived: false
+            }));
+
+            const { error: insertErr } = await supabase
+                .from('UserTopic')
+                .insert(topicsToInsert);
+            if (insertErr) throw insertErr;
+
+            // Update user onboarding stage
+            const nextStage = user?.onboarding_stage === 'COMPLETE' ? 'COMPLETE' : 'AVAILABILITY';
+            const { error: userErr } = await supabase
+                .from('User')
+                .update({ onboarding_stage: nextStage })
+                .eq('id', user?.id);
+            if (userErr) throw userErr;
+
             await reloadUser();
             
             if (user?.onboarding_stage === 'COMPLETE') {
@@ -329,14 +490,42 @@ export default function Onboarding() {
                 return;
             }
 
-            await axios.post('/api/availability', { availabilities: finalAvailabilities });
+            // Delete existing StudyAvailability
+            const { error: deleteErr } = await supabase
+                .from('StudyAvailability')
+                .delete()
+                .eq('user_id', user?.id);
+            if (deleteErr) throw deleteErr;
 
-            await axios.post('/api/plan/generate');
+            // Insert new StudyAvailability
+            const availToInsert = finalAvailabilities.map((a: any) => ({
+                user_id: user?.id,
+                day_of_week: a.day_of_week,
+                start_time: a.start_time,
+                end_time: a.end_time
+            }));
+            const { error: insertErr } = await supabase
+                .from('StudyAvailability')
+                .insert(availToInsert);
+            if (insertErr) throw insertErr;
+
+            // Generate study plan via Edge Function
+            const { error: genErr } = await supabase.functions.invoke('generate-plan', {
+                body: { fullRecalculate: true }
+            });
+            if (genErr) throw genErr;
+
+            // Set Onboarding Stage to COMPLETE
+            const { error: userErr } = await supabase
+                .from('User')
+                .update({ onboarding_stage: 'COMPLETE' })
+                .eq('id', user?.id);
+            if (userErr) throw userErr;
 
             await reloadUser();
         } catch (error: any) {
             console.error(error);
-            alert(`Error: ${error.response?.data?.message || error.response?.data?.error || 'Server error saving availability'}`);
+            alert(`Error: ${error.message || 'Server error saving availability'}`);
         } finally {
             setIsSubmitting(false);
         }
