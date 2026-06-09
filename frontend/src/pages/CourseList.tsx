@@ -1,5 +1,5 @@
 import React, { useState, useEffect, useContext } from 'react';
-import { Link } from 'react-router-dom';
+import { Link, useNavigate } from 'react-router-dom';
 import { supabase } from '../supabaseClient';
 import { AuthContext } from '../context/AuthContext';
 import { 
@@ -16,11 +16,16 @@ import {
     ChevronLeft, 
     ChevronRight, 
     User, 
-    LayoutGrid 
+    LayoutGrid,
+    ChevronDown,
+    LogOut,
+    Activity,
+    BookOpen
 } from 'lucide-react';
 
 export default function CourseList() {
-    const { user } = useContext(AuthContext);
+    const { user, logout } = useContext(AuthContext);
+    const navigate = useNavigate();
     const [courses, setCourses] = useState<any[]>([]);
     const [loading, setLoading] = useState(true);
     
@@ -31,10 +36,11 @@ export default function CourseList() {
     const [currentPage, setCurrentPage] = useState(1);
     const itemsPerPage = 5;
 
-    // Modals state
+    // Modals & Menu state
     const [isAddModalOpen, setIsAddModalOpen] = useState(false);
     const [isEditModalOpen, setIsEditModalOpen] = useState(false);
     const [isDeleteModalOpen, setIsDeleteModalOpen] = useState(false);
+    const [isProfileMenuOpen, setIsProfileMenuOpen] = useState(false);
     
     const [selectedCourse, setSelectedCourse] = useState<any>(null);
     const [formData, setFormData] = useState({ code: '', title: '', units: 3, difficulty: 3 });
@@ -257,33 +263,89 @@ export default function CourseList() {
 
     return (
         <div className="min-h-screen bg-gradient-to-tr from-indigo-50/10 via-white to-blue-50/10">
-            {/* Header Section */}
-            <nav className="bg-white border-b border-slate-100 sticky top-0 z-30 shadow-sm/50">
+            {/* Header Section with Softened Divider */}
+            <nav className="bg-white border-b border-gray-100 sticky top-0 z-30">
                 <div className="max-w-[1600px] mx-auto px-6 lg:px-8">
-                    <div className="flex justify-between h-16 items-center">
-                        <div className="flex items-center gap-4">
+                    <div className="flex justify-between h-16 items-center relative">
+                        {/* Logo Link */}
+                        <div className="flex items-center gap-2">
                             <Link to="/dashboard" className="flex items-center gap-2">
-                                <div className="bg-indigo-600/10 text-indigo-600 p-1.5 rounded-lg border border-indigo-100">
-                                    <BrainCircuit className="w-5 h-5" />
+                                <div className="bg-indigo-600 p-1.5 rounded-lg">
+                                    <BrainCircuit className="text-white w-6 h-6" />
                                 </div>
-                                <span className="font-extrabold text-lg text-slate-900 tracking-tight">Nuero Plan</span>
+                                <span className="font-bold text-xl text-gray-900 tracking-tight">Nuero Plan</span>
                             </Link>
-                            
-                            {/* Dashboard Secondary Button with Hover Functions */}
+                        </div>
+                        
+                        {/* Centered Dashboard Button */}
+                        <div className="absolute left-1/2 -translate-x-1/2 hidden md:block">
                             <Link 
                                 to="/dashboard" 
-                                className="bg-indigo-50 hover:bg-indigo-100 text-indigo-700 font-bold px-4 py-1.5 rounded-lg text-sm border border-indigo-100 hover:border-indigo-200 transition-all duration-200 hover:-translate-y-0.5 shadow-sm active:translate-y-0"
+                                className="bg-indigo-50 hover:bg-indigo-100 text-indigo-700 font-bold px-5 py-1.5 rounded-lg text-sm border border-indigo-100 hover:border-indigo-200 transition-all duration-200 hover:-translate-y-0.5 shadow-sm active:translate-y-0"
                             >
                                 Dashboard
                             </Link>
                         </div>
                         
-                        {/* User Profile display */}
-                        <div className="flex items-center gap-2 bg-slate-50 border border-slate-100 px-3.5 py-1.5 rounded-xl text-sm font-semibold text-slate-700 shadow-sm/25">
-                            <div className="bg-slate-200 text-slate-600 p-1 rounded-full">
-                                <User size={14} />
-                            </div>
-                            <span>{user?.name || 'Username'}</span>
+                        {/* Right Profile Dropdown (Same as Dashboard page) */}
+                        <div className="relative flex items-center">
+                            <button 
+                                onClick={() => setIsProfileMenuOpen(!isProfileMenuOpen)}
+                                onBlur={() => setTimeout(() => setIsProfileMenuOpen(false), 200)}
+                                className="flex items-center gap-2 bg-gray-50 hover:bg-gray-100 transition-colors pr-2 pl-1 py-1 rounded-full border border-gray-200 cursor-pointer"
+                            >
+                                <div className="bg-indigo-100 p-1.5 rounded-full">
+                                    <User className="w-4 h-4 text-indigo-600" />
+                                </div>
+                                <span className="text-sm font-medium text-gray-700 hidden sm:block">Hello, {user?.name}</span>
+                                <ChevronDown className={`w-4 h-4 text-gray-400 transition-transform ${isProfileMenuOpen ? 'rotate-180' : ''}`} />
+                            </button>
+
+                            {isProfileMenuOpen && (
+                                <div className="absolute right-0 top-full mt-2 w-56 sm:w-60 bg-white rounded-xl shadow-[0_4px_20px_-4px_rgba(0,0,0,0.1)] border border-gray-100 overflow-hidden z-50 animate-in fade-in slide-in-from-top-2 duration-200">
+                                    <div className="py-1 whitespace-nowrap">
+                                        <button 
+                                            onClick={() => navigate('/dashboard')}
+                                            className="flex w-full items-center px-4 py-2.5 text-sm font-medium text-gray-700 hover:bg-gray-50 transition-colors hover:text-indigo-600 cursor-pointer text-left"
+                                        >
+                                            <BrainCircuit className="w-4 h-4 mr-2" />
+                                            Dashboard
+                                        </button>
+                                        <button 
+                                            onClick={() => navigate('/courses')}
+                                            className="flex w-full items-center px-4 py-2.5 text-sm font-medium text-gray-700 hover:bg-gray-50 transition-colors hover:text-indigo-600 cursor-pointer text-left"
+                                        >
+                                            <BookOpen className="w-4 h-4 mr-2" />
+                                            Curriculum Manager
+                                        </button>
+                                        <button 
+                                            onClick={() => window.location.href = '/dashboard/tracker'}
+                                            className="flex w-full items-center px-4 py-2.5 text-sm font-medium text-gray-700 hover:bg-gray-50 transition-colors hover:text-indigo-600 cursor-pointer text-left"
+                                        >
+                                            <Activity className="w-4 h-4 mr-2" />
+                                            Mastery Insights
+                                        </button>
+                                        <button 
+                                            onClick={() => navigate('/history')}
+                                            className="flex w-full items-center px-4 py-2.5 text-sm font-medium text-gray-700 hover:bg-gray-50 transition-colors hover:text-indigo-600 cursor-pointer text-left"
+                                        >
+                                            <Activity className="w-4 h-4 mr-2" />
+                                            Performance Analytics
+                                        </button>
+                                        <div className="h-px bg-gray-100 my-1"></div>
+                                        <button 
+                                            onClick={() => {
+                                                setIsProfileMenuOpen(false);
+                                                logout();
+                                            }}
+                                            className="flex w-full items-center px-4 py-2.5 text-sm font-medium text-red-600 hover:bg-red-50 transition-colors cursor-pointer text-left"
+                                        >
+                                            <LogOut className="w-4 h-4 mr-2" />
+                                            Sign Out
+                                        </button>
+                                    </div>
+                                </div>
+                            )}
                         </div>
                     </div>
                 </div>
@@ -687,7 +749,7 @@ export default function CourseList() {
             {isDeleteModalOpen && (
                 <div className="fixed inset-0 bg-slate-900/40 backdrop-blur-sm z-50 flex items-center justify-center p-4 animate-in fade-in duration-200">
                     <div className="bg-white rounded-2xl shadow-xl w-full max-w-sm overflow-hidden text-center p-6 animate-in zoom-in-95 duration-200">
-                        <div className="w-16 h-16 bg-red-50 rounded-full flex items-center justify-center mx-auto mb-4">
+                        <div className="w-16 h-16 bg-red-100 rounded-full flex items-center justify-center mx-auto mb-4">
                             <Trash2 className="w-7 h-7 text-red-600" />
                         </div>
                         <h3 className="text-xl font-bold text-slate-900 mb-2">Remove Course?</h3>
