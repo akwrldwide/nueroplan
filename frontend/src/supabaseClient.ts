@@ -4,7 +4,15 @@ const supabaseUrl = import.meta.env.VITE_SUPABASE_URL || '';
 const supabaseAnonKey = import.meta.env.VITE_SUPABASE_ANON_KEY || '';
 
 if (!supabaseUrl || !supabaseAnonKey) {
-  console.warn("Warning: VITE_SUPABASE_URL or VITE_SUPABASE_ANON_KEY is missing in your frontend environment variables.");
+  console.error(
+    "Critical Error: VITE_SUPABASE_URL or VITE_SUPABASE_ANON_KEY is missing in environment variables.\n" +
+    "Please configure them in your Vercel Project Settings > Environment Variables."
+  );
 }
 
-export const supabase = createClient(supabaseUrl, supabaseAnonKey);
+// Fallback placeholders to prevent top-level runtime crashes during module import
+const safeUrl = supabaseUrl && supabaseUrl.startsWith('http') ? supabaseUrl : 'https://placeholder.supabase.co';
+const safeKey = supabaseAnonKey || 'placeholder-anon-key';
+
+export const supabase = createClient(safeUrl, safeKey);
+
