@@ -19,8 +19,7 @@ import {
     LayoutGrid,
     ChevronDown,
     LogOut,
-    Activity,
-    BookOpen
+    Activity
 } from 'lucide-react';
 
 export default function CourseList() {
@@ -277,16 +276,6 @@ export default function CourseList() {
                             </Link>
                         </div>
                         
-                        {/* Centered Dashboard Button */}
-                        <div className="absolute left-1/2 -translate-x-1/2 hidden md:block">
-                            <Link 
-                                to="/dashboard" 
-                                className="bg-indigo-50 hover:bg-indigo-100 text-indigo-700 font-bold px-5 py-1.5 rounded-lg text-sm border border-indigo-100 hover:border-indigo-200 transition-all duration-200 hover:-translate-y-0.5 shadow-sm active:translate-y-0"
-                            >
-                                Dashboard
-                            </Link>
-                        </div>
-                        
                         {/* Right Profile Dropdown (Same as Dashboard page) */}
                         <div className="relative flex items-center">
                             <button 
@@ -312,13 +301,6 @@ export default function CourseList() {
                                             Dashboard
                                         </button>
                                         <button 
-                                            onClick={() => navigate('/courses')}
-                                            className="flex w-full items-center px-4 py-2.5 text-sm font-medium text-gray-700 hover:bg-gray-50 transition-colors hover:text-indigo-600 cursor-pointer text-left"
-                                        >
-                                            <BookOpen className="w-4 h-4 mr-2" />
-                                            Curriculum Manager
-                                        </button>
-                                        <button 
                                             onClick={() => window.location.href = '/dashboard/tracker'}
                                             className="flex w-full items-center px-4 py-2.5 text-sm font-medium text-gray-700 hover:bg-gray-50 transition-colors hover:text-indigo-600 cursor-pointer text-left"
                                         >
@@ -341,7 +323,7 @@ export default function CourseList() {
                                             className="flex w-full items-center px-4 py-2.5 text-sm font-medium text-red-600 hover:bg-red-50 transition-colors cursor-pointer text-left"
                                         >
                                             <LogOut className="w-4 h-4 mr-2" />
-                                            Sign Out
+                                            Logout
                                         </button>
                                     </div>
                                 </div>
