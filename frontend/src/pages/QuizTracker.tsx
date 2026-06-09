@@ -1,4 +1,5 @@
 import { useState, useEffect, useContext } from 'react';
+import { useNavigate } from 'react-router-dom';
 import { supabase } from '../supabaseClient';
 import { AuthContext } from '../context/AuthContext';
 import { LineChart, Line, XAxis, YAxis, CartesianGrid, Tooltip, ResponsiveContainer } from 'recharts';
@@ -7,6 +8,7 @@ import { format } from 'date-fns';
 
 export default function QuizTracker() {
   const { user } = useContext(AuthContext);
+  const navigate = useNavigate();
   const [results, setResults] = useState<any[]>([]);
   const [insights, setInsights] = useState<any>(null);
   const [courses, setCourses] = useState<any[]>([]);
@@ -164,7 +166,7 @@ export default function QuizTracker() {
         <div className="flex flex-col md:flex-row md:items-center justify-between gap-4">
           <div className="flex items-center gap-4">
             <button 
-              onClick={() => window.history.back()}
+              onClick={() => navigate('/dashboard')}
               className="p-2 bg-white border border-gray-200 rounded-lg hover:bg-gray-50 transition cursor-pointer"
             >
               <ArrowLeft className="w-5 h-5 text-gray-600" />
