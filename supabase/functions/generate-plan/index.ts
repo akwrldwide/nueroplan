@@ -392,9 +392,9 @@ Deno.serve(async (req) => {
 
     const userTopicIds = topicsWithPriority.map(t => t.id);
 
-    // Delete future/current uncompleted sessions for recalculation
+    // Delete uncompleted sessions starting from planStartDate for recalculation
     if (fullRecalculate) {
-      const boundaryDate = new Date(todayMidnight);
+      const boundaryDate = new Date(planStartDate);
       boundaryDate.setHours(0, 0, 0, 0);
       
       const { error: delErr } = await supabaseAdmin
@@ -553,8 +553,7 @@ Deno.serve(async (req) => {
         const slotDateStr = slot.exactDate.toISOString().split('T')[0];
 
         if ((effectiveEndDate && slot.exactDate > effectiveEndDate) || 
-            (activeSession && slot.exactDate < new Date(activeSession.start_date)) || 
-            (slot.exactDate < todayMidnight)) {
+            (activeSession && slot.exactDate < new Date(activeSession.start_date))) {
           continue;
         }
 
