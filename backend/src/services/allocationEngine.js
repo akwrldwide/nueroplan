@@ -264,10 +264,10 @@ async function generateStudyPlan(user_id, fullRecalculate = false, forceFullSeme
 
     const userTopicIds = topicsWithPriority.map(t => t.id);
 
-    // Delete future/current uncompleted sessions for recalculation to prevent duplicate pileups.
-    // We preserve past uncompleted sessions (history) by using todayMidnight as the boundary.
+    // Delete uncompleted sessions starting from planStartDate for recalculation to prevent duplicate pileups.
+    // We preserve past completed sessions by filtering on completed: false.
     if (fullRecalculate) {
-        const boundaryDate = new Date(todayMidnight);
+        const boundaryDate = new Date(planStartDate);
         boundaryDate.setHours(0, 0, 0, 0);
         
         await prisma.studySession.deleteMany({
@@ -429,8 +429,7 @@ async function generateStudyPlan(user_id, fullRecalculate = false, forceFullSeme
             const slotDateStr = slot.exactDate.toISOString().split('T')[0];
 
             if ((effectiveEndDate && slot.exactDate > effectiveEndDate) || 
-                (activeSession && slot.exactDate < activeSession.start_date) || 
-                (slot.exactDate < todayMidnight)) {
+                (activeSession && slot.exactDate < activeSession.start_date)) {
                 continue;
             }
 
