@@ -117,9 +117,9 @@ export default function Dashboard() {
         }
     };
 
-    const fetchDashboardData = async () => {
+    const fetchDashboardData = async (silent = false) => {
         if (!user) return;
-        setLoading(true);
+        if (!silent) setLoading(true);
         try {
             // 1. Fetch User details for current stored streak
             const { data: userData, error: userErr } = await supabase
@@ -564,10 +564,10 @@ export default function Dashboard() {
                     origin: { y: 0.6 }
                 });
             }
-            fetchDashboardData();
+            fetchDashboardData(true);
         } catch (e) {
             console.error(e);
-            fetchDashboardData(); // Revert
+            fetchDashboardData(true); // Revert
             alert("Failed to mark session complete");
         }
     };
