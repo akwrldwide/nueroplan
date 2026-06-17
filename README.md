@@ -1,10 +1,13 @@
 # Nuero Plan
 
-A Curriculum-Aware Adaptive Academic Planning System that uses custom weighted decision logic for intelligent course priority allocation.
+A Curriculum-Aware Adaptive Academic Planning System using custom weighted decision logic for intelligent course priority allocation and risk evaluation.
+
+A detailed, styled version of this tech stack summary is available in the generated [Nueroplan_Tech_Stack.pdf](Nueroplan_Tech_Stack.pdf) file.
 
 ## Architecture
-- **Frontend**: React, Vite, Tailwind CSS, React Router, React Hook Form, Axios, Lucide React.
-- **Backend**: Node.js, Express, PostgreSQL, Prisma ORM, JWT authentication, bcryptjs.
+- **Frontend**: React (v19.2), Vite (v7.3), TypeScript, Tailwind CSS (v4.2), React Router Dom (v7.13), Axios, Recharts (v3.7), Framer Motion (v12.34), Lucide React.
+- **Backend**: Node.js, Express (v5.2), Google Generative AI (Gemini v0.24), Prisma ORM (v5.22), JWT authentication, bcryptjs, pdf-parse (v2.4).
+- **Database**: PostgreSQL (pg v8.18).
 
 ## Run Instructions
 
