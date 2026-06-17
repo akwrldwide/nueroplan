@@ -5,7 +5,7 @@ A Curriculum-Aware Adaptive Academic Planning System using custom weighted decis
 A detailed, styled version of this tech stack summary is available in the generated [Nueroplan_Tech_Stack.pdf](Nueroplan_Tech_Stack.pdf) file.
 
 ## Architecture
-- **Frontend**: React (v19.2), Vite (v7.3), TypeScript, Tailwind CSS (v4.2), React Router Dom (v7.13), Axios, Recharts (v3.7), Framer Motion (v12.34), Lucide React.
+- **Frontend**: React (v19.2), Vite (v7.3), TypeScript, Tailwind CSS (v4.2), React Router Dom (v7.13), Axios, Recharts (v3.7), Motion (v12.34), Lucide React.
 - **Backend**: Node.js, Express (v5.2), Google Generative AI (Gemini v0.24), Prisma ORM (v5.22), JWT authentication, bcryptjs, pdf-parse (v2.4).
 - **Database**: PostgreSQL (pg v8.18).
 
