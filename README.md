@@ -3,11 +3,12 @@
 A Curriculum-Aware Adaptive Academic Planning System using custom weighted decision logic for intelligent course priority allocation and risk evaluation.
 
 A detailed, styled version of this tech stack summary is available in the generated [Nueroplan_Tech_Stack.pdf](Nueroplan_Tech_Stack.pdf) file.
-
 ## Architecture
-- **Frontend**: React (v19.2), Vite (v7.3), TypeScript, Tailwind CSS (v4.2), React Router Dom (v7.13), Axios, Recharts (v3.7), Motion (v12.34), Lucide React.
-- **Backend**: Node.js, Express (v5.2), Google Generative AI (Gemini v0.24), Prisma ORM (v5.22), JWT authentication, bcryptjs, pdf-parse (v2.4).
-- **Database**: PostgreSQL (pg v8.18).
+- **Frontend**: React (v19.2), Vite (v7.3), TypeScript, Tailwind CSS (v4.2), React Router Dom (v7.13), Recharts (v3.7), Framer Motion (v12.34), jsPDF (v4.2), `@supabase/supabase-js` client SDK.
+- **Backend / Serverless**: Supabase Edge Functions (running on Deno serverless runtime) with custom scheduling engines (`generate-plan` and `generate-quiz`).
+- **AI Integration**: Google Gemini 2.5 Flash REST API (invoked directly within the Edge Functions).
+- **Database**: Supabase PostgreSQL DB with automated PL/pgSQL synchronization triggers.
+- **Identity & Authentication**: Supabase Auth (GoTrue).
 
 ## Run Instructions
 
