@@ -193,11 +193,24 @@ async function generateStudyPlan(user_id, fullRecalculate = false, forceFullSeme
         effectiveEndDate = new Date(activeSession.end_date);
     } else if (activeSession && !activeSession.end_date) {
         // Case C: Active session, infer end date from semester window
-        const currentYear = new Date(activeSession.start_date).getFullYear();
-        if (activeSession.semester === '1st Semester') {
-            effectiveEndDate = new Date(currentYear, 5, 30); // June 30
+        const activeWindow = await prisma.activeSemesterWindow.findFirst({
+            where: {
+                name: activeSession.semester,
+                is_active: true
+            }
+        });
+        if (activeWindow && activeWindow.end_date) {
+            effectiveEndDate = new Date(activeWindow.end_date);
         } else {
-            effectiveEndDate = new Date(currentYear, 11, 31); // Dec 31
+            let currentYear = new Date(activeSession.start_date).getFullYear();
+            if (new Date(activeSession.start_date).getMonth() === 11) {
+                currentYear += 1;
+            }
+            if (activeSession.semester === '1st Semester') {
+                effectiveEndDate = new Date(currentYear, 5, 30); // June 30
+            } else {
+                effectiveEndDate = new Date(currentYear, 11, 31); // Dec 31
+            }
         }
     } else {
         effectiveEndDate = new Date(planStartDate);
@@ -413,7 +426,13 @@ async function generateStudyPlan(user_id, fullRecalculate = false, forceFullSeme
             }
         }
 
-        let weeklyTopics = topicsWithPriority.map(t => {
+        let rotatedTopics = [...topicsWithPriority];
+        if (rotatedTopics.length > 0) {
+            const rotationIndex = (w * 17) % rotatedTopics.length;
+            rotatedTopics = [...rotatedTopics.slice(rotationIndex), ...rotatedTopics.slice(0, rotationIndex)];
+        }
+
+        let weeklyTopics = rotatedTopics.map(t => {
             let courseForT = userCourses.find(uc => uc.course_id === t.course_id);
             return {
                 ...t,
@@ -542,7 +561,7 @@ async function generateStudyPlan(user_id, fullRecalculate = false, forceFullSeme
                 let courseForT = t.courseForT;
                 let maxAllowedSession = 50;
 
-                let sessionLength = Math.min(maxAllowedSession, slotRemainingMins, maxMinutesToday - dailyMinsUsed, t.minsNeeded); 
+                let sessionLength = Math.min(maxAllowedSession, slotRemainingMins, maxMinutesToday - dailyMinsUsed, Math.max(30, t.minsNeeded)); 
                 if (sessionLength < 30) break; 
             
                 let sessionType = (isFinalExamDay || isExamDay || slot.isPreExamBlock || nextDayHasExam) ? "REVISION" : "LEARN"; 

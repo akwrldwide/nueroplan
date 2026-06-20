@@ -303,14 +303,31 @@ Deno.serve(async (req) => {
     let totalWeeks = 16;
     const planStartDate = activeSession ? new Date(activeSession.start_date) : today;
     
+    // Query ActiveSemesterWindow matching the activeSession's semester
+    let activeWindow = null;
+    if (activeSession) {
+      const { data: windowData } = await supabaseAdmin
+        .from('ActiveSemesterWindow')
+        .select('*')
+        .eq('name', activeSession.semester)
+        .eq('is_active', true)
+        .maybeSingle();
+      activeWindow = windowData;
+    }
+
     // Determine planning horizon
     let effectiveEndDate: Date | null = null;
     if (latestExamDate) {
       effectiveEndDate = new Date(latestExamDate);
     } else if (activeSession && activeSession.end_date) {
       effectiveEndDate = new Date(activeSession.end_date);
+    } else if (activeWindow && activeWindow.end_date) {
+      effectiveEndDate = new Date(activeWindow.end_date);
     } else if (activeSession && !activeSession.end_date) {
-      const currentYear = new Date(activeSession.start_date).getFullYear();
+      let currentYear = new Date(activeSession.start_date).getFullYear();
+      if (new Date(activeSession.start_date).getMonth() === 11) {
+        currentYear += 1;
+      }
       if (activeSession.semester === '1st Semester') {
         effectiveEndDate = new Date(currentYear, 5, 30); // June 30
       } else {
@@ -539,7 +556,13 @@ Deno.serve(async (req) => {
         }
       }
 
-      const weeklyTopics = topicsWithPriority.map(t => {
+      let rotatedTopics = [...topicsWithPriority];
+      if (rotatedTopics.length > 0) {
+        const rotationIndex = (w * 17) % rotatedTopics.length;
+        rotatedTopics = [...rotatedTopics.slice(rotationIndex), ...rotatedTopics.slice(0, rotationIndex)];
+      }
+
+      const weeklyTopics = rotatedTopics.map(t => {
         const courseForT = userCourses.find(uc => uc.course_id === t.course_id);
         return {
           ...t,
@@ -666,7 +689,7 @@ Deno.serve(async (req) => {
           const courseForT = t.courseForT;
           const maxAllowedSession = 50;
 
-          const sessionLength = Math.min(maxAllowedSession, slotRemainingMins, maxMinutesToday - dailyMinsUsed, t.minsNeeded); 
+          const sessionLength = Math.min(maxAllowedSession, slotRemainingMins, maxMinutesToday - dailyMinsUsed, Math.max(30, t.minsNeeded)); 
           if (sessionLength < 30) break; 
       
           let sessionType = (isFinalExamDay || isExamDay || slot.isPreExamBlock || nextDayHasExam) ? "REVISION" : "LEARN"; 
