@@ -1,6 +1,41 @@
 const { PrismaClient } = require('@prisma/client');
 const prisma = new PrismaClient();
 
+const getOrCreateActiveSemesterWindow = async (tx = prisma) => {
+    const today = new Date();
+    const currentYear = today.getFullYear();
+
+    let activeWindow = await tx.activeSemesterWindow.findFirst({
+        where: {
+            start_date: { lte: today },
+            end_date: { gte: today },
+            is_active: true
+        }
+    });
+
+    if (!activeWindow) {
+        let name, start, end;
+        if (today.getMonth() < 6) { // Jan - Jun
+            name = "1st Semester";
+            start = new Date(currentYear, 0, 1);
+            end = new Date(currentYear, 5, 30, 23, 59, 59, 999);
+        } else { // Jul - Dec
+            name = "2nd Semester";
+            start = new Date(currentYear, 6, 1);
+            end = new Date(currentYear, 11, 31, 23, 59, 59, 999);
+        }
+
+        activeWindow = await tx.activeSemesterWindow.create({
+            data: {
+                name,
+                start_date: start,
+                end_date: end
+            }
+        });
+    }
+    return activeWindow;
+};
+
 const getAcademicStatus = async (req, res) => {
     try {
         const user_id = req.user.id;
@@ -87,17 +122,10 @@ const progressSemester = async (req, res) => {
             }
         });
 
-        // Determine start date based on the next semester window
-        const currentYear = new Date().getFullYear();
-        let startDate;
-        if (nextSemesterInt === 1) {
-            startDate = new Date(currentYear, 0, 1); // Jan 1
-        } else {
-            startDate = new Date(currentYear, 6, 1); // Jul 1
-        }
-
         // Perform all updates in a transaction
         await prisma.$transaction(async (tx) => {
+            const activeWindow = await getOrCreateActiveSemesterWindow(tx);
+
             // 1. Archive current session
             if (currentSession) {
                 await tx.academicSession.update({
@@ -108,13 +136,25 @@ const progressSemester = async (req, res) => {
                 });
             }
 
-            // 2. Create new session
-            const newSession = await tx.academicSession.create({
+            // 2. Create new session anchored to active semester window
+            await tx.academicSession.create({
                 data: {
                     user_id,
-                    semester: nextSemesterStr,
+                    semester: activeWindow.name,
                     level: nextLevel,
-                    start_date: startDate
+                    start_date: activeWindow.start_date
+                }
+            });
+
+            // 2.5 Update UserSelectedSemester
+            await tx.userSelectedSemester.upsert({
+                where: { user_id },
+                create: {
+                    user_id,
+                    semester: nextSemesterStr
+                },
+                update: {
+                    semester: nextSemesterStr
                 }
             });
 

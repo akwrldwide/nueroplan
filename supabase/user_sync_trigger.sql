@@ -45,9 +45,15 @@ DECLARE
   current_session_rec RECORD;
   next_sem INT;
   next_lvl INT;
-  start_dt TIMESTAMP;
-  curr_yr INT;
   new_session_id TEXT;
+  
+  -- Add variables for active semester window
+  active_window_rec RECORD;
+  active_window_name TEXT;
+  active_window_start TIMESTAMP;
+  active_window_end TIMESTAMP;
+  curr_yr INT;
+  user_selected_sem_str TEXT;
 BEGIN
   -- Get current profile
   SELECT * INTO profile_rec FROM public."AcademicProfile" WHERE user_id = user_id_param;
@@ -63,40 +69,81 @@ BEGIN
     next_lvl := profile_rec.level + 100;
   END IF;
 
+  -- 1. Find or create ActiveSemesterWindow for current date
+  SELECT * INTO active_window_rec FROM public."ActiveSemesterWindow" 
+  WHERE start_date <= CURRENT_TIMESTAMP AND end_date >= CURRENT_TIMESTAMP AND is_active = true 
+  LIMIT 1;
+
+  IF active_window_rec.id IS NULL THEN
+    curr_yr := EXTRACT(YEAR FROM CURRENT_DATE);
+    IF EXTRACT(MONTH FROM CURRENT_DATE) <= 6 THEN
+      active_window_name := '1st Semester';
+      active_window_start := MAKE_DATE(curr_yr, 1, 1);
+      active_window_end := MAKE_TIMESTAMP(curr_yr, 6, 30, 23, 59, 59);
+    ELSE
+      active_window_name := '2nd Semester';
+      active_window_start := MAKE_DATE(curr_yr, 7, 1);
+      active_window_end := MAKE_TIMESTAMP(curr_yr, 12, 31, 23, 59, 59);
+    END IF;
+
+    -- Dynamically insert ActiveSemesterWindow
+    INSERT INTO public."ActiveSemesterWindow" (id, name, start_date, end_date, is_active, created_at)
+    VALUES (
+      gen_random_uuid()::text,
+      active_window_name,
+      active_window_start,
+      active_window_end,
+      true,
+      CURRENT_TIMESTAMP
+    ) RETURNING name, start_date INTO active_window_name, active_window_start;
+  ELSE
+    active_window_name := active_window_rec.name;
+    active_window_start := active_window_rec.start_date;
+  END IF;
+
   -- Find current open academic session
   SELECT * INTO current_session_rec FROM public."AcademicSession" WHERE user_id = user_id_param AND end_date IS NULL ORDER BY created_at DESC LIMIT 1;
 
-  curr_yr := EXTRACT(YEAR FROM CURRENT_DATE);
-  IF next_sem = 1 THEN
-    start_dt := MAKE_DATE(curr_yr, 1, 1);
-  ELSE
-    start_dt := MAKE_DATE(curr_yr, 7, 1);
-  END IF;
-
-  -- 1. Archive current session
+  -- 2. Archive current session
   IF current_session_rec.id IS NOT NULL THEN
     UPDATE public."AcademicSession" SET end_date = CURRENT_TIMESTAMP WHERE id = current_session_rec.id;
   END IF;
 
-  -- 2. Create new session
+  -- 3. Create new session anchored to active semester window
   new_session_id := gen_random_uuid()::text;
   INSERT INTO public."AcademicSession" (id, user_id, semester, level, start_date, created_at)
   VALUES (
     new_session_id,
     user_id_param,
-    CASE WHEN next_sem = 1 THEN '1st Semester' ELSE '2nd Semester' END,
+    active_window_name,
     next_lvl,
-    start_dt,
+    active_window_start,
     CURRENT_TIMESTAMP
   );
 
-  -- 3. Update academic profile
+  -- 4. Save UserSelectedSemester
+  IF next_sem = 1 THEN
+    user_selected_sem_str := '1st Semester';
+  ELSE
+    user_selected_sem_str := '2nd Semester';
+  END IF;
+
+  INSERT INTO public."UserSelectedSemester" (id, user_id, semester, created_at)
+  VALUES (
+    gen_random_uuid()::text,
+    user_id_param,
+    user_selected_sem_str,
+    CURRENT_TIMESTAMP
+  )
+  ON CONFLICT (user_id) DO UPDATE SET semester = EXCLUDED.semester;
+
+  -- 5. Update academic profile
   UPDATE public."AcademicProfile" SET semester = next_sem, level = next_lvl WHERE user_id = user_id_param;
 
-  -- 3.5 Reset Onboarding Stage
+  -- 5.5 Reset Onboarding Stage
   UPDATE public."User" SET onboarding_stage = 'COURSES' WHERE id = user_id_param;
 
-  -- 4. Archive models
+  -- 6. Archive models
   UPDATE public."UserCourse" SET is_archived = true WHERE user_id = user_id_param AND is_archived = false;
   UPDATE public."UserTopic" SET is_archived = true WHERE user_id = user_id_param AND is_archived = false;
   UPDATE public."StudyPlan" SET is_archived = true WHERE user_id = user_id_param AND is_archived = false;

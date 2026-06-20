@@ -244,6 +244,32 @@ export default function Onboarding() {
 
         setIsSubmitting(true);
         try {
+            // Determine active semester window based on current date
+            const today = new Date();
+            const currentYear = today.getFullYear();
+            let activeWindowName = '1st Semester';
+            let activeWindowStart = new Date(currentYear, 0, 1).toISOString();
+
+            if (today.getMonth() >= 6) {
+                activeWindowName = '2nd Semester';
+                activeWindowStart = new Date(currentYear, 6, 1).toISOString();
+            }
+
+            // Attempt to query ActiveSemesterWindow from DB
+            const { data: activeWindowFromDb } = await supabase
+                .from('ActiveSemesterWindow')
+                .select('*')
+                .lte('start_date', today.toISOString())
+                .gte('end_date', today.toISOString())
+                .eq('is_active', true)
+                .maybeSingle();
+
+            const activeName = activeWindowFromDb?.name || activeWindowName;
+            const activeStart = activeWindowFromDb?.start_date || activeWindowStart;
+
+            const semInt = parseInt(profileData.semester);
+            const userSelectedSemStr = semInt === 1 ? '1st Semester' : '2nd Semester';
+
             // Check if profile exists first
             const { data: existingProfile } = await supabase
                 .from('AcademicProfile')
@@ -266,6 +292,14 @@ export default function Onboarding() {
                     .eq('user_id', user?.id);
                 if (profileErr) throw profileErr;
 
+                // Create/update UserSelectedSemester
+                await supabase
+                    .from('UserSelectedSemester')
+                    .upsert({
+                        user_id: user?.id,
+                        semester: userSelectedSemStr
+                    }, { onConflict: 'user_id' });
+
                 // Also update current AcademicSession if one exists and is not closed yet
                 const { data: activeSessionData } = await supabase
                     .from('AcademicSession')
@@ -276,12 +310,12 @@ export default function Onboarding() {
                 
                 const activeSession = activeSessionData?.[0] || null;
                 if (activeSession && !activeSession.end_date) {
-                    const semInt = parseInt(profileData.semester);
                     await supabase
                         .from('AcademicSession')
                         .update({
-                            semester: semInt === 1 ? '1st Semester' : '2nd Semester',
-                            level: parseInt(profileData.level)
+                            semester: activeName,
+                            level: parseInt(profileData.level),
+                            start_date: activeStart
                         })
                         .eq('id', activeSession.id);
                 }
@@ -317,23 +351,22 @@ export default function Onboarding() {
                 });
             if (profileErr) throw profileErr;
 
-            // Create AcademicSession
-            const currentYear = new Date().getFullYear();
-            let startDate;
-            const semInt = parseInt(profileData.semester);
-            if (semInt === 1) {
-                startDate = new Date(currentYear, 0, 1).toISOString();
-            } else {
-                startDate = new Date(currentYear, 6, 1).toISOString();
-            }
+            // Create/update UserSelectedSemester
+            await supabase
+                .from('UserSelectedSemester')
+                .upsert({
+                    user_id: user?.id,
+                    semester: userSelectedSemStr
+                }, { onConflict: 'user_id' });
 
+            // Create AcademicSession using the ACTIVE window name and start date
             const { error: sessionErr } = await supabase
                 .from('AcademicSession')
                 .insert({
                     user_id: user?.id,
-                    semester: semInt === 1 ? '1st Semester' : '2nd Semester',
+                    semester: activeName,
                     level: parseInt(profileData.level),
-                    start_date: startDate
+                    start_date: activeStart
                 });
             if (sessionErr) throw sessionErr;
 

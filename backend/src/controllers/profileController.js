@@ -1,6 +1,41 @@
 const { PrismaClient } = require('@prisma/client');
 const prisma = new PrismaClient();
 
+const getOrCreateActiveSemesterWindow = async (tx = prisma) => {
+    const today = new Date();
+    const currentYear = today.getFullYear();
+
+    let activeWindow = await tx.activeSemesterWindow.findFirst({
+        where: {
+            start_date: { lte: today },
+            end_date: { gte: today },
+            is_active: true
+        }
+    });
+
+    if (!activeWindow) {
+        let name, start, end;
+        if (today.getMonth() < 6) { // Jan - Jun
+            name = "1st Semester";
+            start = new Date(currentYear, 0, 1);
+            end = new Date(currentYear, 5, 30, 23, 59, 59, 999);
+        } else { // Jul - Dec
+            name = "2nd Semester";
+            start = new Date(currentYear, 6, 1);
+            end = new Date(currentYear, 11, 31, 23, 59, 59, 999);
+        }
+
+        activeWindow = await tx.activeSemesterWindow.create({
+            data: {
+                name,
+                start_date: start,
+                end_date: end
+            }
+        });
+    }
+    return activeWindow;
+};
+
 const createProfile = async (req, res) => {
     try {
         const { program, level, semester, curriculum_type, current_cgpa, academic_goal } = req.body;
@@ -22,48 +57,54 @@ const createProfile = async (req, res) => {
             return res.status(400).json({ message: "Current CGPA is required" });
         }
 
-        const profile = await prisma.academicProfile.create({
-            data: {
-                user_id,
-                program,
-                level: parsedLevel,
-                semester: parsedSemester,
-                curriculum_type,
-                current_cgpa: current_cgpa && parseFloat(current_cgpa) > 0 ? parseFloat(current_cgpa) : null,
-                academic_goal,
-            },
-        });
+        // Perform in a transaction to guarantee consistency
+        const profile = await prisma.$transaction(async (tx) => {
+            const activeWindow = await getOrCreateActiveSemesterWindow(tx);
+            const userSelectedSemStr = parsedSemester === 1 ? '1st Semester' : '2nd Semester';
 
-        // Determine session dates based on semester
-        const currentYear = new Date().getFullYear();
-        let startDate, endDate;
-        const semInt = semester ? parseInt(semester) : 1;
-        
-        if (semInt === 1) {
-            startDate = new Date(currentYear, 0, 1); // Jan 1
-            endDate = new Date(currentYear, 5, 30);  // Jun 30
-        } else {
-            startDate = new Date(currentYear, 6, 1); // Jul 1
-            endDate = new Date(currentYear, 11, 31); // Dec 31
-        }
+            // Create Academic Profile
+            const prof = await tx.academicProfile.create({
+                data: {
+                    user_id,
+                    program,
+                    level: parsedLevel,
+                    semester: parsedSemester,
+                    curriculum_type,
+                    current_cgpa: current_cgpa && parseFloat(current_cgpa) > 0 ? parseFloat(current_cgpa) : null,
+                    academic_goal,
+                },
+            });
 
-        const sessionName = `${currentYear} Session ${semInt}`;
+            // Create User Selected Semester record
+            await tx.userSelectedSemester.upsert({
+                where: { user_id },
+                create: {
+                    user_id,
+                    semester: userSelectedSemStr
+                },
+                update: {
+                    semester: userSelectedSemStr
+                }
+            });
 
-        // Create Academic Session
-        await prisma.academicSession.create({
-            data: {
-                user_id,
-                semester: semInt === 1 ? '1st Semester' : '2nd Semester',
-                level: parseInt(level),
-                start_date: startDate,
-                end_date: null
-            }
-        });
+            // Create Academic Session anchored to active semester window
+            await tx.academicSession.create({
+                data: {
+                    user_id,
+                    semester: activeWindow.name,
+                    level: parsedLevel,
+                    start_date: activeWindow.start_date,
+                    end_date: null
+                }
+            });
 
-        // Advance Onboarding Stage
-        await prisma.user.update({
-            where: { id: user_id },
-            data: { onboarding_stage: 'COURSES' }
+            // Advance Onboarding Stage
+            await tx.user.update({
+                where: { id: user_id },
+                data: { onboarding_stage: 'COURSES' }
+            });
+
+            return prof;
         });
 
         res.status(201).json(profile);

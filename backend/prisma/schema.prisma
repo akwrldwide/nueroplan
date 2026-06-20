@@ -25,6 +25,7 @@ model User {
   preferred_focus_window String @default("ANY")
 
   academicProfile AcademicProfile?
+  userSelectedSemester UserSelectedSemester?
   userCourses     UserCourse[]
   userTopics      UserTopic[]
   availabilities  StudyAvailability[]
@@ -228,4 +229,22 @@ model MistakeLog {
 
   user      User      @relation(fields: [user_id], references: [id], onDelete: Cascade)
   userTopic UserTopic @relation(fields: [user_topic_id], references: [id], onDelete: Cascade)
+}
+
+model ActiveSemesterWindow {
+  id         String   @id @default(uuid())
+  name       String   // "1st Semester" or "2nd Semester"
+  start_date DateTime
+  end_date   DateTime
+  is_active  Boolean  @default(true)
+  created_at DateTime @default(now())
+}
+
+model UserSelectedSemester {
+  id         String   @id @default(uuid())
+  user_id    String   @unique
+  semester   String   // "1st Semester" or "2nd Semester"
+  created_at DateTime @default(now())
+
+  user       User     @relation(fields: [user_id], references: [id], onDelete: Cascade)
 }
