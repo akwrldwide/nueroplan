@@ -72,6 +72,7 @@ export default function Quiz() {
             const { error: resultErr } = await supabase
                 .from('QuizResult')
                 .insert({
+                    id: crypto.randomUUID(),
                     user_id: user.id,
                     course_id: courseId,
                     score_percentage: score

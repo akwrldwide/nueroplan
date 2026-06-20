@@ -129,6 +129,18 @@ export default function CourseList() {
     const handleAddCourse = async (e: React.FormEvent) => {
         e.preventDefault();
         if (!user) return;
+
+        const units = parseInt(formData.units as any);
+        const difficulty = parseFloat(formData.difficulty as any);
+        if (isNaN(units) || units < 1 || units > 10) {
+            alert("Units must be between 1 and 10");
+            return;
+        }
+        if (isNaN(difficulty) || difficulty < 1.0 || difficulty > 5.0) {
+            alert("Difficulty must be between 1.0 and 5.0");
+            return;
+        }
+
         setIsSubmitting(true);
         try {
             // Get profile details
@@ -151,6 +163,7 @@ export default function CourseList() {
             const { data: newCourse, error: courseErr } = await supabase
                 .from('Course')
                 .insert({
+                    id: crypto.randomUUID(),
                     program_id: program.id,
                     code: formData.code,
                     title: formData.title,
@@ -167,6 +180,7 @@ export default function CourseList() {
             const { error: userCourseErr } = await supabase
                 .from('UserCourse')
                 .insert({
+                    id: crypto.randomUUID(),
                     user_id: user.id,
                     course_id: newCourse.id,
                     is_selected: true
@@ -177,6 +191,7 @@ export default function CourseList() {
             const { error: topicErr } = await supabase
                 .from('UserTopic')
                 .insert({
+                    id: crypto.randomUUID(),
                     user_id: user.id,
                     course_id: newCourse.id,
                     topic_name: 'General Study',
@@ -199,6 +214,18 @@ export default function CourseList() {
     const handleEditCourse = async (e: React.FormEvent) => {
         e.preventDefault();
         if(!selectedCourse) return;
+
+        const units = parseInt(formData.units as any);
+        const difficulty = parseFloat(formData.difficulty as any);
+        if (isNaN(units) || units < 1 || units > 10) {
+            alert("Units must be between 1 and 10");
+            return;
+        }
+        if (isNaN(difficulty) || difficulty < 1.0 || difficulty > 5.0) {
+            alert("Difficulty must be between 1.0 and 5.0");
+            return;
+        }
+
         setIsSubmitting(true);
         try {
             const { error: editErr } = await supabase

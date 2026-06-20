@@ -296,6 +296,7 @@ export default function Onboarding() {
                 await supabase
                     .from('UserSelectedSemester')
                     .upsert({
+                        id: crypto.randomUUID(),
                         user_id: user?.id,
                         semester: userSelectedSemStr
                     }, { onConflict: 'user_id' });
@@ -341,6 +342,7 @@ export default function Onboarding() {
             const { error: profileErr } = await supabase
                 .from('AcademicProfile')
                 .insert({
+                    id: crypto.randomUUID(),
                     user_id: user?.id,
                     program: profileData.program,
                     level: parseInt(profileData.level),
@@ -355,6 +357,7 @@ export default function Onboarding() {
             await supabase
                 .from('UserSelectedSemester')
                 .upsert({
+                    id: crypto.randomUUID(),
                     user_id: user?.id,
                     semester: userSelectedSemStr
                 }, { onConflict: 'user_id' });
@@ -363,6 +366,7 @@ export default function Onboarding() {
             const { error: sessionErr } = await supabase
                 .from('AcademicSession')
                 .insert({
+                    id: crypto.randomUUID(),
                     user_id: user?.id,
                     semester: activeName,
                     level: parseInt(profileData.level),
@@ -413,6 +417,7 @@ export default function Onboarding() {
 
                 // Insert new UserCourses
                 const coursesToInsert = courses.map((c: any) => ({
+                    id: crypto.randomUUID(),
                     user_id: user?.id,
                     course_id: c.id,
                     is_selected: true,
@@ -535,6 +540,7 @@ export default function Onboarding() {
 
             // Insert new UserTopics
             const topicsToInsert = topicsToSave.map((t: any) => ({
+                id: crypto.randomUUID(),
                 user_id: user?.id,
                 course_id: t.course_id,
                 course_topic_id: t.course_topic_id || null,
@@ -619,6 +625,7 @@ export default function Onboarding() {
 
             // Insert new StudyAvailability
             const availToInsert = finalAvailabilities.map((a: any) => ({
+                id: crypto.randomUUID(),
                 user_id: user?.id,
                 day_of_week: a.day_of_week,
                 start_time: a.start_time,

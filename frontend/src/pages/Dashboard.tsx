@@ -74,6 +74,17 @@ export default function Dashboard() {
             const today = new Date();
             today.setHours(0, 0, 0, 0);
 
+            // First pass: Validate all exam durations
+            for (const id of Object.keys(examDrafts)) {
+                const draft = examDrafts[id];
+                if (draft.duration !== undefined && draft.duration !== null && draft.duration !== "") {
+                    const dur = parseInt(draft.duration);
+                    if (isNaN(dur) || dur <= 0) {
+                        throw new Error('Exam duration must be a positive number of minutes');
+                    }
+                }
+            }
+
             const updatePromises = Object.keys(examDrafts).map(async (id) => {
                 const draft = examDrafts[id];
                 let parsedDate = null;
@@ -89,7 +100,7 @@ export default function Dashboard() {
                         exam_date: parsedDate ? parsedDate.toISOString() : null,
                         exam_time: draft.time || null,
                         exam_venue: draft.venue || null,
-                        exam_duration: draft.duration ? parseInt(draft.duration) : 180,
+                        exam_duration: draft.duration !== "" && draft.duration !== undefined ? parseInt(draft.duration) : 180,
                         exam_instructions: draft.instructions || null
                     })
                     .eq('id', id);
@@ -492,6 +503,7 @@ export default function Dashboard() {
                     const { error: logCreateErr } = await supabase
                         .from('ProgressLog')
                         .insert({
+                            id: crypto.randomUUID(),
                             user_id: user.id,
                             user_course_id: userCourse.id,
                             study_hours_logged: sessionData.allocated_hours,
@@ -581,6 +593,15 @@ export default function Dashboard() {
 
     const handleSaveSettings = async () => {
         if (!user) return;
+        
+        if (cgpa !== '') {
+            const cgpaVal = parseFloat(cgpa as any);
+            if (isNaN(cgpaVal) || cgpaVal < 0 || cgpaVal > 5.0) {
+                alert("Please enter a valid CGPA between 0.0 and 5.0");
+                return;
+            }
+        }
+
         try {
             const { error: userErr } = await supabase
                 .from('User')
@@ -617,6 +638,18 @@ export default function Dashboard() {
 
     const handleSaveStudyTime = async () => {
         if (!user) return;
+        const start = globalTime.start_time;
+        const end = globalTime.end_time;
+        if (!start || !end) {
+            alert("Please select both start and end times.");
+            return;
+        }
+        const s = new Date(`1970-01-01T${start}:00`);
+        const e = new Date(`1970-01-01T${end}:00`);
+        if ((e.getTime() - s.getTime()) < 30 * 60000) {
+            alert("Study session duration must be at least 30 minutes.");
+            return;
+        }
         try {
             // Delete existing study availability
             const { error: deleteErr } = await supabase
@@ -626,6 +659,7 @@ export default function Dashboard() {
             if (deleteErr) throw deleteErr;
 
             const availabilities = ['Mon', 'Tue', 'Wed', 'Thu', 'Fri', 'Sat', 'Sun'].map(day => ({
+                id: crypto.randomUUID(),
                 user_id: user.id,
                 day_of_week: day,
                 start_time: globalTime.start_time,
@@ -1096,8 +1130,9 @@ export default function Dashboard() {
                                                                 <input 
                                                                     type="number" 
                                                                     placeholder="Mins" 
+                                                                    min="1"
                                                                     value={examDrafts[c.id]?.duration || 180}
-                                                                    onChange={(e) => handleDraftChange(c.id, 'duration', parseInt(e.target.value))}
+                                                                    onChange={(e) => handleDraftChange(c.id, 'duration', e.target.value === "" ? "" : parseInt(e.target.value))}
                                                                     className="w-1/2 rounded-lg border-gray-300 py-1.5 px-3 text-sm"
                                                                 />
                                                                 <input 
@@ -1192,8 +1227,9 @@ export default function Dashboard() {
                                                     <input 
                                                         type="number" 
                                                         placeholder="Mins" 
+                                                        min="1"
                                                         value={examDrafts[c.id]?.duration || 180}
-                                                        onChange={(e) => handleDraftChange(c.id, 'duration', parseInt(e.target.value))}
+                                                        onChange={(e) => handleDraftChange(c.id, 'duration', e.target.value === "" ? "" : parseInt(e.target.value))}
                                                         className="w-1/2 rounded-lg border-gray-300 py-1.5 px-3 text-sm"
                                                     />
                                                     <input 

@@ -166,6 +166,7 @@ Deno.serve(async (req) => {
       }
 
       const topicsToSeed = userCourses.map(c => ({
+        id: crypto.randomUUID(),
         user_id: user_id,
         course_id: c.course_id,
         topic_name: 'General Study',
@@ -409,7 +410,7 @@ Deno.serve(async (req) => {
     // Create Study Plan
     const { data: studyPlan, error: planInsertErr } = await supabaseAdmin
       .from('StudyPlan')
-      .insert({ user_id, week_start_date: planStartDate.toISOString() })
+      .insert({ id: crypto.randomUUID(), user_id, week_start_date: planStartDate.toISOString() })
       .select()
       .single();
 
@@ -681,6 +682,7 @@ Deno.serve(async (req) => {
           const endStr = `${String(Math.floor(sessionEndMins/60)).padStart(2,'0')}:${String(sessionEndMins%60).padStart(2,'0')}`;
 
           sessionData.push({ 
+            id: crypto.randomUUID(),
             study_plan_id: studyPlan.id, 
             user_topic_id: t.id, 
             session_date: slot.exactDate.toISOString(), 
