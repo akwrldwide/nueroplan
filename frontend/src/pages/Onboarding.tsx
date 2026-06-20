@@ -186,6 +186,27 @@ export default function Onboarding() {
         }
     }, [user, navigate]);
 
+    useEffect(() => {
+        if (!user) return;
+        supabase
+            .from('AcademicProfile')
+            .select('*')
+            .eq('user_id', user.id)
+            .maybeSingle()
+            .then(({ data, error }) => {
+                if (data && !error) {
+                    setProfileData({
+                        program: data.program,
+                        level: String(data.level),
+                        semester: String(data.semester),
+                        curriculum_type: data.curriculum_type,
+                        current_cgpa: data.current_cgpa ? String(data.current_cgpa) : '',
+                        academic_goal: data.academic_goal
+                    });
+                }
+            });
+    }, [user]);
+
     const handleProfileSubmit = async (e: React.FormEvent) => {
         e.preventDefault();
 
@@ -207,6 +228,40 @@ export default function Onboarding() {
                 .maybeSingle();
 
             if (existingProfile) {
+                // Update profile
+                const { error: profileErr } = await supabase
+                    .from('AcademicProfile')
+                    .update({
+                        program: profileData.program,
+                        level: parseInt(profileData.level),
+                        semester: parseInt(profileData.semester),
+                        curriculum_type: profileData.curriculum_type,
+                        current_cgpa: profileData.current_cgpa ? parseFloat(profileData.current_cgpa) : null,
+                        academic_goal: profileData.academic_goal
+                    })
+                    .eq('user_id', user?.id);
+                if (profileErr) throw profileErr;
+
+                // Also update current AcademicSession if one exists and is not closed yet
+                const { data: activeSessionData } = await supabase
+                    .from('AcademicSession')
+                    .select('*')
+                    .eq('user_id', user?.id)
+                    .order('created_at', { ascending: false })
+                    .limit(1);
+                
+                const activeSession = activeSessionData?.[0] || null;
+                if (activeSession && !activeSession.end_date) {
+                    const semInt = parseInt(profileData.semester);
+                    await supabase
+                        .from('AcademicSession')
+                        .update({
+                            semester: semInt === 1 ? '1st Semester' : '2nd Semester',
+                            level: parseInt(profileData.level)
+                        })
+                        .eq('id', activeSession.id);
+                }
+
                 if (profileData.curriculum_type === 'BMAS') {
                     const { data: curriculum, error: currErr } = await supabase
                         .from('Course')
@@ -291,11 +346,12 @@ export default function Onboarding() {
         setIsSubmitting(true);
         try {
             if (courses.length > 0) {
-                // Delete existing UserCourses
+                // Delete existing active UserCourses
                 const { error: deleteErr } = await supabase
                     .from('UserCourse')
                     .delete()
-                    .eq('user_id', user?.id);
+                    .eq('user_id', user?.id)
+                    .eq('is_archived', false);
                 if (deleteErr) throw deleteErr;
 
                 // Insert new UserCourses
@@ -391,11 +447,12 @@ export default function Onboarding() {
                 allTopicsToSave = [...allTopicsToSave, ...courseArray];
             });
 
-            // Delete existing UserTopics
+            // Delete existing active UserTopics
             const { error: deleteErr } = await supabase
                 .from('UserTopic')
                 .delete()
-                .eq('user_id', user?.id);
+                .eq('user_id', user?.id)
+                .eq('is_archived', false);
             if (deleteErr) throw deleteErr;
 
             // Fetch active courses

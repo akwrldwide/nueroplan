@@ -966,6 +966,12 @@ export default function Dashboard() {
                                 <p className="mt-4 text-sm text-gray-500"> 
                                     Remember to read one book per day — it keeps the mind sharp! 
                                 </p> 
+                                <button
+                                    onClick={handleProgressSemester}
+                                    className="mt-6 px-6 py-2.5 bg-emerald-600 hover:bg-emerald-700 text-white font-bold rounded-xl shadow transition duration-200 cursor-pointer flex items-center gap-2"
+                                >
+                                    <span>Start Next Semester</span>
+                                </button>
                             </div> 
                         ) : !plan || (!plan.isSemesterBreak && (!plan.sessions || plan.sessions.length === 0)) ? (
                             <div className="bg-white rounded-2xl shadow-sm border border-gray-100 mt-6 p-6 text-center py-12">

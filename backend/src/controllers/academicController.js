@@ -103,8 +103,7 @@ const progressSemester = async (req, res) => {
                 await tx.academicSession.update({
                     where: { id: currentSession.id },
                     data: {
-                        end_date: new Date(),
-                        is_archived: true
+                        end_date: new Date()
                     }
                 });
             }
