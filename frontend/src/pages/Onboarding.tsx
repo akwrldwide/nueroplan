@@ -38,6 +38,30 @@ export default function Onboarding() {
     const [selectedTopics, setSelectedTopics] = useState<Record<string, any[]>>({});
     const [customTopicInput, setCustomTopicInput] = useState<Record<string, string>>({});
 
+    const [programs, setPrograms] = useState<string[]>([
+        'Computer Science',
+        'Software Engineering',
+        'Mechanical Engineering'
+    ]);
+
+    useEffect(() => {
+        const fetchPrograms = async () => {
+            try {
+                const { data, error } = await supabase
+                    .from('Program')
+                    .select('name')
+                    .order('name', { ascending: true });
+                if (error) throw error;
+                if (data) {
+                    setPrograms(data.map((p: any) => p.name));
+                }
+            } catch (err) {
+                console.error('Error fetching programs:', err);
+            }
+        };
+        fetchPrograms();
+    }, []);
+
     const days = ['Mon', 'Tue', 'Wed', 'Thu', 'Fri', 'Sat', 'Sun'];
     const [availabilityType, setAvailabilityType] = useState('Option A'); 
     
@@ -662,9 +686,11 @@ export default function Onboarding() {
                                         onChange={(e) => setProfileData({ ...profileData, program: e.target.value })}
                                         className="block w-full rounded-xl border-gray-300 border py-3 px-4 focus:ring-indigo-500 focus:border-indigo-500 sm:text-sm"
                                     >
-                                        <option value="Computer Science">Computer Science</option>
-                                        <option value="Software Engineering">Software Engineering</option>
-                                        <option value="Mechanical Engineering">Mechanical Engineering</option>
+                                        {programs.map((prog) => (
+                                            <option key={prog} value={prog}>
+                                                {prog}
+                                            </option>
+                                        ))}
                                     </select>
                                 </div>
                                 <div>
