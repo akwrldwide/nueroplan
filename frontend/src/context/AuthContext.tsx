@@ -89,12 +89,14 @@ export const AuthProvider = ({ children }: { children: ReactNode }) => {
     }, []);
 
     const login = (newToken: string, newUser: User) => {
+        localStorage.setItem('lastActivity', Date.now().toString());
         setToken(newToken);
         setUser(newUser);
     };
 
     const logout = async () => {
         await supabase.auth.signOut();
+        localStorage.removeItem('lastActivity');
         setToken(null);
         setUser(null);
     };
