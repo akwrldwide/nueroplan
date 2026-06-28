@@ -13,14 +13,41 @@ export default function Quiz() {
     const [loading, setLoading] = useState(true);
     const [submitting, setSubmitting] = useState(false);
     const [result, setResult] = useState<any>(null);
+    const [actualCourseId, setActualCourseId] = useState<string | null>(null);
+    const [courseName, setCourseName] = useState<string>('Module Quiz');
 
     useEffect(() => {
         const fetchQuestions = async () => {
             try {
+                // 1. Fetch UserCourse to resolve the actual course_id
+                const { data: userCourseData, error: ucError } = await supabase
+                    .from('UserCourse')
+                    .select('course_id, course:Course(code, title)')
+                    .eq('id', courseId)
+                    .single();
+
+                let targetCourseId: string | null = courseId ?? null;
+                if (ucError || !userCourseData) {
+                    console.error("Failed to resolve UserCourse:", ucError);
+                    setActualCourseId(courseId ?? null);
+                } else {
+                    targetCourseId = userCourseData.course_id;
+                    setActualCourseId(targetCourseId);
+                    
+                    const courseObj: any = Array.isArray(userCourseData.course) 
+                        ? userCourseData.course[0] 
+                        : userCourseData.course;
+                        
+                    if (courseObj) {
+                        setCourseName(`${courseObj.code} - ${courseObj.title}`);
+                    }
+                }
+
+                // 2. Fetch QuizQuestions using targetCourseId
                 const { data, error } = await supabase
                     .from('QuizQuestion')
                     .select('*')
-                    .eq('course_id', courseId)
+                    .eq('course_id', targetCourseId || '')
                     .limit(20);
                 if (error) throw error;
 
@@ -67,6 +94,7 @@ export default function Quiz() {
                 }
             });
             const score = Math.round((correctCount / questions.length) * 100);
+            const targetCourseId = actualCourseId || courseId;
 
             // 1. Save result to database
             const { error: resultErr } = await supabase
@@ -74,7 +102,7 @@ export default function Quiz() {
                 .insert({
                     id: crypto.randomUUID(),
                     user_id: user.id,
-                    course_id: courseId,
+                    course_id: targetCourseId,
                     score_percentage: score
                 });
             if (resultErr) throw resultErr;
@@ -84,7 +112,7 @@ export default function Quiz() {
                 .from('UserTopic')
                 .select('*')
                 .eq('user_id', user.id)
-                .eq('course_id', courseId)
+                .eq('course_id', targetCourseId)
                 .eq('is_archived', false);
             if (topicsErr) throw topicsErr;
 
@@ -134,7 +162,7 @@ export default function Quiz() {
                 {!result ? (
                     <div className="bg-white rounded-2xl shadow-sm border border-gray-100 p-6 sm:p-10">
                         <div className="mb-8 border-b border-gray-100 pb-6">
-                            <h1 className="text-2xl font-bold text-gray-900">Module Quiz</h1>
+                            <h1 className="text-2xl font-bold text-gray-900">{courseName}</h1>
                             <p className="text-gray-500 mt-2">Answer the following questions to help the engine adapt your risk factor.</p>
                         </div>
 
