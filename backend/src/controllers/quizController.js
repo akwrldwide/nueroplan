@@ -45,7 +45,8 @@ const submitQuiz = async (req, res) => {
         });
 
         // Adaptive Learning Model: M_i(t+1) = M_i(t) + η(Q_i - M_i(t))
-        const eta = 0.2;
+        const config = await prisma.systemConfig.findUnique({ where: { id: 'system_config' } });
+        const eta = config ? config.learning_rate_eta : 0.2;
         const Q_i = score_percentage / 100;
         
         const topics = await prisma.userTopic.findMany({
@@ -149,7 +150,8 @@ const saveAIQuizResult = async (req, res) => {
             });
 
             if (userTopic) {
-                const eta = 0.2; // Adaptive Learning Rate
+                const config = await prisma.systemConfig.findUnique({ where: { id: 'system_config' } });
+                const eta = config ? config.learning_rate_eta : 0.2; // Adaptive Learning Rate
                 const Q_i = score_percentage / 100;
                 const M_t = userTopic.mastery_level || 0;
                 const M_next = M_t + eta * (Q_i - M_t);

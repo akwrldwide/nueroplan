@@ -727,6 +727,18 @@ export default function Dashboard() {
                                 {isProfileMenuOpen && (
                                     <div className="absolute right-0 top-full mt-2 w-56 sm:w-60 bg-white rounded-xl shadow-[0_4px_20px_-4px_rgba(0,0,0,0.1)] border border-gray-100 overflow-hidden z-50 animate-in fade-in slide-in-from-top-2 duration-200">
                                         <div className="py-1 whitespace-nowrap">
+                                            {user?.role === 'ADMIN' && (
+                                                <>
+                                                    <button 
+                                                        onClick={() => navigate('/admin/dashboard')}
+                                                        className="flex w-full items-center px-4 py-2.5 text-sm font-extrabold text-indigo-700 hover:bg-indigo-50 transition-colors cursor-pointer"
+                                                    >
+                                                        <BrainCircuit className="w-4 h-4 mr-2" />
+                                                        Admin Console
+                                                    </button>
+                                                    <div className="h-px bg-gray-100 my-1"></div>
+                                                </>
+                                            )}
                                             <button 
                                                 onClick={() => navigate('/courses')}
                                                 className="flex w-full items-center px-4 py-2.5 text-sm font-medium text-gray-700 hover:bg-gray-50 transition-colors hover:text-indigo-600 cursor-pointer"

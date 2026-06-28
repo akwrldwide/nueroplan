@@ -42,7 +42,9 @@ export default function Login() {
 
                 login(authData.session?.access_token || '', profile);
 
-                if (profile.onboarding_stage !== 'COMPLETE') {
+                if (profile.role === 'ADMIN') {
+                    navigate('/admin/dashboard');
+                } else if (profile.onboarding_stage !== 'COMPLETE') {
                     navigate('/onboarding');
                 } else {
                     navigate('/dashboard');

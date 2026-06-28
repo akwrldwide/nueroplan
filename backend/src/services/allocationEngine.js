@@ -58,9 +58,12 @@ async function generateStudyPlan(user_id, fullRecalculate = false, forceFullSeme
 
     const userObj = await prisma.user.findUnique({ where: { id: user_id } });
     if (!userObj) throw new Error("User missing");
+
+    // Retrieve global system settings configuration
+    const config = await prisma.systemConfig.findUnique({ where: { id: 'system_config' } });
     
     const studyAfterExamMode = userObj.post_exam_preference || "OFF";
-    const allowPreExamRevision = userObj.allow_morning_revision || false;
+    const allowPreExamRevision = (config ? config.allow_morning_revision : false) || userObj.allow_morning_revision || false;
     const preferredFocusWindow = userObj.preferred_focus_window || "ANY";
     const currentSemester = profile.semester;
 
@@ -263,7 +266,7 @@ async function generateStudyPlan(user_id, fullRecalculate = false, forceFullSeme
         const units = t.course?.units || 3;
         const unitWeight = Math.min(units / 6, 1.0); // normalize assuming 6 is max
 
-        const priority = calculateTopicPriority(t, uc, profile, riskFactor, unitWeight, isExamCluster);
+        const priority = calculateTopicPriority(t, uc, profile, riskFactor, unitWeight, isExamCluster, config);
         topicsWithPriority.push({ ...t, priority });
         totalPriority += priority;
     }
@@ -559,10 +562,11 @@ async function generateStudyPlan(user_id, fullRecalculate = false, forceFullSeme
 
                 let t = selectedTopic;
                 let courseForT = t.courseForT;
-                let maxAllowedSession = 50;
+                let minAllowedSession = config ? config.min_session_duration : 30;
+                let maxAllowedSession = config ? config.max_session_duration : 50;
 
-                let sessionLength = Math.min(maxAllowedSession, slotRemainingMins, maxMinutesToday - dailyMinsUsed, Math.max(30, t.minsNeeded)); 
-                if (sessionLength < 30) break; 
+                let sessionLength = Math.min(maxAllowedSession, slotRemainingMins, maxMinutesToday - dailyMinsUsed, Math.max(minAllowedSession, t.minsNeeded)); 
+                if (sessionLength < minAllowedSession) break; 
             
                 let sessionType = (isFinalExamDay || isExamDay || slot.isPreExamBlock || nextDayHasExam) ? "REVISION" : "LEARN"; 
                 if (sessionType === "LEARN") {

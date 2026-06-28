@@ -34,6 +34,7 @@ const topicRoutes = require('./routes/topicRoutes');
 const mistakeRoutes = require('./routes/mistakeRoutes');
 const aiRoutes = require('./routes/aiRoutes');
 const academicRoutes = require('./routes/academicRoutes');
+const adminRoutes = require('./routes/adminRoutes');
 
 // Routes
 app.use('/api/auth', authRoutes);
@@ -47,6 +48,7 @@ app.use('/api/topics', topicRoutes);
 app.use('/api/mistakes', mistakeRoutes);
 app.use('/api/ai', aiRoutes);
 app.use('/api/academic', academicRoutes);
+app.use('/api/admin', adminRoutes);
 
 app.get("/", (req, res) => {
   res.send("Nueroplan API is running 🚀");

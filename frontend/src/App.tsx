@@ -14,6 +14,14 @@ import QuizTracker from './pages/QuizTracker';
 import GlobalHistory from './pages/GlobalHistory';
 import SessionTimeout from './components/SessionTimeout';
 
+// Admin Panel Imports
+import AdminDashboard from './pages/admin/AdminDashboard';
+import AcademicStructure from './pages/admin/AcademicStructure';
+import AdminStudents from './pages/admin/AdminStudents';
+import AdminAnalytics from './pages/admin/AdminAnalytics';
+import AdminSettings from './pages/admin/AdminSettings';
+import AdminUserControl from './pages/admin/AdminUserControl';
+
 // Protected Route Component
 const ProtectedRoute = ({ children, requireProfile = false }: { children: React.ReactNode, requireProfile?: boolean }) => {
   const { user, loading } = useContext(AuthContext);
@@ -31,6 +39,25 @@ const ProtectedRoute = ({ children, requireProfile = false }: { children: React.
     if (user.onboarding_stage !== 'COMPLETE') {
       return <Navigate to="/onboarding" replace />;
     }
+  }
+
+  return <>{children}</>;
+};
+
+// Admin Route Component (Role Guarded)
+const AdminRoute = ({ children }: { children: React.ReactNode }) => {
+  const { user, loading } = useContext(AuthContext);
+
+  if (loading) {
+    return <div className="h-screen flex items-center justify-center text-gray-500">Loading Nuero Plan...</div>;
+  }
+
+  if (!user) {
+    return <Navigate to="/login" replace />;
+  }
+
+  if (user.role !== 'ADMIN') {
+    return <Navigate to="/dashboard" replace />;
   }
 
   return <>{children}</>;
@@ -56,6 +83,15 @@ function App() {
             <Route path="/dashboard/tracker" element={<ProtectedRoute requireProfile><QuizTracker /></ProtectedRoute>} />
             <Route path="/analytics" element={<ProtectedRoute requireProfile><Analytics /></ProtectedRoute>} />
             <Route path="/history" element={<ProtectedRoute requireProfile><GlobalHistory /></ProtectedRoute>} />
+
+            {/* Admin Panel Routes */}
+            <Route path="/admin" element={<AdminRoute><AdminDashboard /></AdminRoute>} />
+            <Route path="/admin/dashboard" element={<AdminRoute><AdminDashboard /></AdminRoute>} />
+            <Route path="/admin/structure" element={<AdminRoute><AcademicStructure /></AdminRoute>} />
+            <Route path="/admin/students" element={<AdminRoute><AdminStudents /></AdminRoute>} />
+            <Route path="/admin/analytics" element={<AdminRoute><AdminAnalytics /></AdminRoute>} />
+            <Route path="/admin/settings" element={<AdminRoute><AdminSettings /></AdminRoute>} />
+            <Route path="/admin/users" element={<AdminRoute><AdminUserControl /></AdminRoute>} />
 
             {/* Catch All */}
             <Route path="*" element={<Navigate to="/" />} />

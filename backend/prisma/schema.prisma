@@ -23,6 +23,8 @@ model User {
   post_exam_preference String @default("REST")
   allow_morning_revision Boolean @default(false)
   preferred_focus_window String @default("ANY")
+  role                   String @default("STUDENT") // STUDENT, ADMIN
+  is_active              Boolean @default(true)
 
   academicProfile AcademicProfile?
   userSelectedSemester UserSelectedSemester?
@@ -247,4 +249,44 @@ model UserSelectedSemester {
   created_at DateTime @default(now())
 
   user       User     @relation(fields: [user_id], references: [id], onDelete: Cascade)
+}
+
+model GlobalAcademicSession {
+  id                 String   @id @default(uuid())
+  name               String   // e.g., "2025/2026 Academic Session"
+  start_date         DateTime
+  end_date           DateTime
+  registration_opens DateTime
+  registration_closes DateTime
+  status             String   @default("UPCOMING") // UPCOMING, ACTIVE, CLOSED
+  created_at         DateTime @default(now())
+  updated_at         DateTime @updatedAt
+}
+
+model SemesterWindow {
+  id                     String   @id @default(uuid())
+  semester               String   @unique // "First Semester" or "Second Semester"
+  start_month            Int      // 1-12
+  start_day              Int      // 1-31
+  end_month              Int      // 1-12
+  end_day                Int      // 1-31
+  allow_early_reg        Boolean  @default(false)
+  reg_lead_time          Int      @default(30) // in days
+  created_at             DateTime @default(now())
+  updated_at             DateTime @updatedAt
+}
+
+model SystemConfig {
+  id                          String   @id @default("system_config")
+  learning_rate_eta           Float    @default(0.20)
+  decay_constant_lambda       Float    @default(0.10)
+  weight_difficulty           Float    @default(0.20)
+  weight_exam                 Float    @default(0.30)
+  weight_mastery              Float    @default(0.15)
+  weight_risk                 Float    @default(0.20)
+  weight_course_unit          Float    @default(0.15)
+  min_session_duration        Int      @default(30) // minutes
+  max_session_duration        Int      @default(180) // minutes
+  allow_morning_revision      Boolean  @default(false)
+  updated_at                  DateTime @updatedAt
 }
