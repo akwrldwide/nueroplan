@@ -5,6 +5,16 @@ import { supabase } from '../supabaseClient';
 import { AuthContext } from '../context/AuthContext';
 import jsPDF from 'jspdf';
 
+const generateUUID = () => {
+  if (typeof crypto !== 'undefined' && typeof crypto.randomUUID === 'function') {
+    return crypto.randomUUID();
+  }
+  return 'xxxxxxxx-xxxx-4xxx-yxxx-xxxxxxxxxxxx'.replace(/[xy]/g, function(c) {
+    const r = Math.random() * 16 | 0, v = c === 'x' ? r : (r & 0x3 | 0x8);
+    return v.toString(16);
+  });
+};
+
 interface Question {
   Topic: string;
   Difficulty: number;
@@ -87,6 +97,7 @@ export default function FlashcardQuiz({ payload, onClose, onComplete }: Flashcar
             const { error } = await supabase
                 .from('QuizResult')
                 .insert({
+                    id: generateUUID(),
                     user_id: user.id,
                     course_id: payload.course.id,
                     topic_name: payload.isWholeCourse ? 'Whole Course' : payload.topics.join(', '),
@@ -137,6 +148,7 @@ export default function FlashcardQuiz({ payload, onClose, onComplete }: Flashcar
       const { error: insertErr } = await supabase
         .from('MistakeLog')
         .insert({
+          id: generateUUID(),
           user_id: user.id,
           user_topic_id: userTopicId,
           question: questionObj.Question,

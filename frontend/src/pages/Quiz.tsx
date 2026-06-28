@@ -4,6 +4,16 @@ import { supabase } from '../supabaseClient';
 import { AuthContext } from '../context/AuthContext';
 import { BrainCircuit, CheckCircle, XCircle } from 'lucide-react';
 
+const generateUUID = () => {
+  if (typeof crypto !== 'undefined' && typeof crypto.randomUUID === 'function') {
+    return crypto.randomUUID();
+  }
+  return 'xxxxxxxx-xxxx-4xxx-yxxx-xxxxxxxxxxxx'.replace(/[xy]/g, function(c) {
+    const r = Math.random() * 16 | 0, v = c === 'x' ? r : (r & 0x3 | 0x8);
+    return v.toString(16);
+  });
+};
+
 export default function Quiz() {
     const { courseId } = useParams();
     const navigate = useNavigate();
@@ -100,7 +110,7 @@ export default function Quiz() {
             const { error: resultErr } = await supabase
                 .from('QuizResult')
                 .insert({
-                    id: crypto.randomUUID(),
+                    id: generateUUID(),
                     user_id: user.id,
                     course_id: targetCourseId,
                     score_percentage: score
