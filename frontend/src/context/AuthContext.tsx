@@ -1,4 +1,4 @@
-import { createContext, useState, useEffect } from 'react';
+import { createContext, useState, useEffect, useRef } from 'react';
 import type { ReactNode } from 'react';
 import { supabase } from '../supabaseClient';
 
@@ -29,6 +29,11 @@ export const AuthProvider = ({ children }: { children: ReactNode }) => {
     const [token, setToken] = useState<string | null>(null);
     const [loading, setLoading] = useState(true);
 
+    const userRef = useRef<User | null>(null);
+    useEffect(() => {
+        userRef.current = user;
+    }, [user]);
+
     const fetchUserProfile = async (userId: string) => {
         try {
             const { data, error } = await supabase
@@ -53,8 +58,11 @@ export const AuthProvider = ({ children }: { children: ReactNode }) => {
         supabase.auth.getSession().then(async ({ data: { session } }) => {
             if (session) {
                 setToken(session.access_token);
-                const profile = await fetchUserProfile(session.user.id);
-                setUser(profile);
+                const currentUser = userRef.current;
+                if (!currentUser || currentUser.id !== session.user.id) {
+                    const profile = await fetchUserProfile(session.user.id);
+                    setUser(profile);
+                }
             }
             setLoading(false);
         });
@@ -63,8 +71,11 @@ export const AuthProvider = ({ children }: { children: ReactNode }) => {
         const { data: { subscription } } = supabase.auth.onAuthStateChange(async (_event, session) => {
             if (session) {
                 setToken(session.access_token);
-                const profile = await fetchUserProfile(session.user.id);
-                setUser(profile);
+                const currentUser = userRef.current;
+                if (!currentUser || currentUser.id !== session.user.id) {
+                    const profile = await fetchUserProfile(session.user.id);
+                    setUser(profile);
+                }
             } else {
                 setToken(null);
                 setUser(null);

@@ -130,7 +130,9 @@ export default function Dashboard() {
 
     const fetchDashboardData = async (silent = false) => {
         if (!user) return;
-        if (!silent) setLoading(true);
+        const hasData = stats !== null || courses.length > 0;
+        const shouldBeSilent = silent || hasData;
+        if (!shouldBeSilent) setLoading(true);
         try {
             // 1. Fetch User details for current stored streak
             const { data: userData, error: userErr } = await supabase

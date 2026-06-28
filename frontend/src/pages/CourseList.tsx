@@ -53,7 +53,9 @@ export default function CourseList() {
 
     const fetchCourses = async () => {
         if (!user) return;
-        setLoading(true);
+        if (courses.length === 0) {
+            setLoading(true);
+        }
         try {
             const { data, error } = await supabase
                 .from('UserCourse')

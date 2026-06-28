@@ -90,7 +90,9 @@ export default function QuizTracker() {
 
   const fetchFilteredResults = async () => {
     if (!user) return;
-    setLoading(true);
+    if (results.length === 0) {
+      setLoading(true);
+    }
     try {
       let query = supabase
         .from('QuizResult')
