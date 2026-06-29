@@ -4,6 +4,8 @@ import { AuthProvider, AuthContext } from './context/AuthContext';
 import { useContext } from 'react';
 import Login from './pages/Login';
 import Register from './pages/Register';
+import ForgotPassword from './pages/ForgotPassword';
+import ResetPassword from './pages/ResetPassword';
 import Landing from './pages/Landing';
 import Onboarding from './pages/Onboarding';
 import Dashboard from './pages/Dashboard';
@@ -72,6 +74,8 @@ function App() {
             <Routes>
             <Route path="/login" element={<Login />} />
             <Route path="/register" element={<Register />} />
+            <Route path="/forgot-password" element={<ForgotPassword />} />
+            <Route path="/reset-password" element={<ResetPassword />} />
 
 
             <Route path="/" element={<Landing />} />
