@@ -6,11 +6,6 @@ import {
   PieChart, 
   Pie, 
   Cell, 
-  BarChart, 
-  Bar, 
-  XAxis, 
-  YAxis, 
-  CartesianGrid, 
   Tooltip, 
   Legend, 
   ResponsiveContainer 
@@ -21,7 +16,7 @@ import {
   Clock, 
   ShieldAlert, 
   Loader2,
-  TrendingUp
+  BarChart3
 } from 'lucide-react';
 
 interface AnalyticsData {
@@ -182,41 +177,58 @@ export default function AdminAnalytics() {
             </div>
           </div>
 
-          {/* 2. Average Study Plan Completion Chart */}
+          {/* 2. Study Plan Completion Chart */}
           <div className="bg-white p-6 rounded-3xl border border-slate-100 shadow-sm flex flex-col justify-between">
             <div>
               <h3 className="font-extrabold text-slate-800 text-md flex items-center gap-2">
-                <TrendingUp className="h-5 w-5 text-indigo-600" /> Average Study Plan Completion
+                <BarChart3 className="h-5 w-5 text-indigo-600" /> Study Plan Completion
               </h3>
               <p className="text-slate-500 text-xs mt-1 leading-relaxed">
                 Aggregated study session completion rates grouped by student academic programme.
               </p>
             </div>
 
-            <div className="h-72 w-full mt-6">
+            <div className="mt-6 flex-1 flex flex-col justify-between">
               {data && data.studyPlanCompletion.length > 0 ? (
-                <ResponsiveContainer width="100%" height="100%">
-                  <BarChart data={data.studyPlanCompletion} layout="vertical" margin={{ left: 10, right: 10, top: 10, bottom: 10 }}>
-                    <CartesianGrid strokeDasharray="3 3" horizontal={true} vertical={false} stroke="#f1f5f9" />
-                    <XAxis type="number" domain={[0, 100]} stroke="#94a3b8" fontSize={10} tickLine={false} />
-                    <YAxis dataKey="program" type="category" stroke="#94a3b8" fontSize={9} tickLine={false} width={100} />
-                    <Tooltip 
-                      contentStyle={{ background: '#0f172a', border: 'none', borderRadius: '12px', color: '#fff', fontSize: '11px' }}
-                      formatter={(value) => [`${value}% Completion`, 'Completion Rate']}
-                    />
-                    <Bar dataKey="completionRate" radius={[0, 8, 8, 0]} maxBarSize={16}>
-                      {data.studyPlanCompletion.map((entry, index) => {
-                        let barColor = '#6366f1';
-                        if (entry.completionRate < 50) barColor = '#f43f5e';
-                        else if (entry.completionRate < 75) barColor = '#fbbf24';
-                        else barColor = '#10b981';
-                        return <Cell key={`cell-${index}`} fill={barColor} />;
-                      })}
-                    </Bar>
-                  </BarChart>
-                </ResponsiveContainer>
+                <div>
+                  <div className="space-y-4">
+                    {data.studyPlanCompletion.map((entry, index) => {
+                      const rate = Math.round(entry.completionRate);
+                      let barColor = 'bg-rose-500';
+                      if (rate >= 50 && rate <= 55) {
+                        barColor = 'bg-amber-400';
+                      } else if (rate > 55) {
+                        barColor = 'bg-orange-500';
+                      }
+                      
+                      return (
+                        <div key={index} className="space-y-1.5">
+                          <div className="flex justify-between items-center text-[10px] font-mono tracking-wider font-bold text-slate-600 uppercase">
+                            <span>{entry.program.toUpperCase()}</span>
+                            <span>{rate}%</span>
+                          </div>
+                          <div className="w-full bg-slate-100 h-2.5 rounded-full overflow-hidden">
+                            <div 
+                              className={`h-full rounded-full ${barColor} transition-all duration-1000`} 
+                              style={{ width: `${Math.min(100, Math.max(0, rate))}%` }}
+                            />
+                          </div>
+                        </div>
+                      );
+                    })}
+                  </div>
+                  
+                  {/* X-Axis Labels */}
+                  <div className="flex justify-between text-[10px] font-mono text-slate-400 mt-6 pt-2 border-t border-slate-100">
+                    <span>0%</span>
+                    <span>25%</span>
+                    <span>50%</span>
+                    <span>75%</span>
+                    <span>100%</span>
+                  </div>
+                </div>
               ) : (
-                <div className="flex items-center justify-center h-full text-slate-400 text-sm font-medium">
+                <div className="flex items-center justify-center h-48 text-slate-400 text-sm font-medium">
                   No study plan sessions recorded yet.
                 </div>
               )}
