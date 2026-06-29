@@ -197,8 +197,10 @@ export default function AdminAnalytics() {
                       let barColor = 'bg-rose-500';
                       if (rate >= 50 && rate <= 55) {
                         barColor = 'bg-amber-400';
-                      } else if (rate > 55) {
+                      } else if (rate > 55 && rate <= 70) {
                         barColor = 'bg-orange-500';
+                      } else if (rate > 70) {
+                        barColor = 'bg-blue-500';
                       }
                       
                       return (
