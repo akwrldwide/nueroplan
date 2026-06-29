@@ -470,11 +470,12 @@ Deno.serve(async (req) => {
 
       const { data: studentsList } = await supabaseAdmin
         .from('User')
-        .select('*, AcademicProfile(program), StudyPlan(StudySession(*))')
+        .select('*, AcademicProfile(program), StudyPlan(StudySession(*)), QuizResult(score_percentage)')
         .eq('role', 'STUDENT')
         .not('email', 'like', 'test_%');
 
       const programCompletionMap: Record<string, { totalSessions: number, completedSessions: number }> = {};
+      const programQuizMap: Record<string, { sum: number, count: number }> = {};
 
       (studentsList || []).forEach((student: any) => {
         const profile = student.AcademicProfile?.[0] || student.AcademicProfile || null;
@@ -489,6 +490,17 @@ Deno.serve(async (req) => {
           programCompletionMap[progName].totalSessions += sessions.length;
           programCompletionMap[progName].completedSessions += sessions.filter((s: any) => s.completed).length;
         });
+
+        const quizResults = student.QuizResult || [];
+        if (quizResults.length > 0) {
+          if (!programQuizMap[progName]) {
+            programQuizMap[progName] = { sum: 0, count: 0 };
+          }
+          quizResults.forEach((q: any) => {
+            programQuizMap[progName].sum += q.score_percentage;
+            programQuizMap[progName].count += 1;
+          });
+        }
       });
 
       const studyPlanCompletion = Object.keys(programCompletionMap).map(prog => {
@@ -497,6 +509,15 @@ Deno.serve(async (req) => {
         return {
           program: prog,
           completionRate: Math.round(rate * 10) / 10
+        };
+      });
+
+      const quizScoreByProgram = Object.keys(programQuizMap).map(prog => {
+        const dataMap = programQuizMap[prog];
+        const average = dataMap.count > 0 ? dataMap.sum / dataMap.count : 0;
+        return {
+          program: prog,
+          averageScore: Math.round(average * 10) / 10
         };
       });
 
@@ -509,7 +530,8 @@ Deno.serve(async (req) => {
           mediumRisk: medRisk,
           highRisk
         },
-        studyPlanCompletion
+        studyPlanCompletion,
+        quizScoreByProgram
       };
 
     } else if (resource === 'settings') {

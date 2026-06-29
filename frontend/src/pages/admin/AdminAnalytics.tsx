@@ -32,6 +32,10 @@ interface AnalyticsData {
     program: string;
     completionRate: number;
   }>;
+  quizScoreByProgram: Array<{
+    program: string;
+    averageScore: number;
+  }>;
 }
 
 export default function AdminAnalytics() {
@@ -128,52 +132,106 @@ export default function AdminAnalytics() {
         </div>
 
         {/* Charts Section */}
-        <div className="grid grid-cols-1 lg:grid-cols-2 gap-8">
-          {/* 1. Risk Distribution Pie Chart */}
-          <div className="bg-white p-6 rounded-3xl border border-slate-100 shadow-sm flex flex-col justify-between">
-            <div>
-              <h3 className="font-extrabold text-slate-855 text-md flex items-center gap-2">
-                <ShieldAlert className="h-5 w-5 text-indigo-600" /> Academic Failure Risk Distribution
-              </h3>
-              <p className="text-slate-500 text-xs mt-1 leading-relaxed">
-                Aggregated assessment of students failure risk calculated using performance averages and consistency scores.
-              </p>
+        <div className="grid grid-cols-1 lg:grid-cols-2 gap-8 items-start">
+          {/* Column 1: Risk & Quiz Scores */}
+          <div className="flex flex-col gap-8">
+            {/* 1. Risk Distribution Pie Chart */}
+            <div className="bg-white p-6 rounded-3xl border border-slate-100 shadow-sm flex flex-col justify-between">
+              <div>
+                <h3 className="font-extrabold text-slate-800 text-md flex items-center gap-2">
+                  <ShieldAlert className="h-5 w-5 text-indigo-600" /> Academic Failure Risk Distribution
+                </h3>
+                <p className="text-slate-500 text-xs mt-1 leading-relaxed">
+                  Aggregated assessment of students failure risk calculated using performance averages and consistency scores.
+                </p>
+              </div>
+
+              <div className="h-72 w-full mt-6">
+                {riskChartData.length > 0 ? (
+                  <ResponsiveContainer width="100%" height="100%">
+                    <PieChart>
+                      <Pie
+                        data={riskChartData}
+                        cx="50%"
+                        cy="50%"
+                        innerRadius={65}
+                        outerRadius={90}
+                        paddingAngle={4}
+                        dataKey="value"
+                      >
+                        {riskChartData.map((entry, index) => (
+                          <Cell key={`cell-${index}`} fill={entry.color} />
+                        ))}
+                      </Pie>
+                      <Tooltip 
+                        contentStyle={{ background: '#0f172a', border: 'none', borderRadius: '12px', color: '#fff', fontSize: '12px' }}
+                      />
+                      <Legend 
+                        verticalAlign="bottom" 
+                        height={36} 
+                        iconType="circle"
+                        iconSize={10}
+                        formatter={(value) => <span className="text-xs font-bold text-slate-600">{value}</span>}
+                      />
+                    </PieChart>
+                  </ResponsiveContainer>
+                ) : (
+                  <div className="flex items-center justify-center h-full text-slate-400 text-sm font-medium">
+                    No risk metrics logged in the database.
+                  </div>
+                )}
+              </div>
             </div>
 
-            <div className="h-72 w-full mt-6">
-              {riskChartData.length > 0 ? (
-                <ResponsiveContainer width="100%" height="100%">
-                  <PieChart>
-                    <Pie
-                      data={riskChartData}
-                      cx="50%"
-                      cy="50%"
-                      innerRadius={65}
-                      outerRadius={90}
-                      paddingAngle={4}
-                      dataKey="value"
-                    >
-                      {riskChartData.map((entry, index) => (
-                        <Cell key={`cell-${index}`} fill={entry.color} />
-                      ))}
-                    </Pie>
-                    <Tooltip 
-                      contentStyle={{ background: '#0f172a', border: 'none', borderRadius: '12px', color: '#fff', fontSize: '12px' }}
-                    />
-                    <Legend 
-                      verticalAlign="bottom" 
-                      height={36} 
-                      iconType="circle"
-                      iconSize={10}
-                      formatter={(value) => <span className="text-xs font-bold text-slate-600">{value}</span>}
-                    />
-                  </PieChart>
-                </ResponsiveContainer>
-              ) : (
-                <div className="flex items-center justify-center h-full text-slate-400 text-sm font-medium">
-                  No risk metrics logged in the database.
-                </div>
-              )}
+            {/* 2. Average Quiz Score by Program */}
+            <div className="bg-white p-6 rounded-3xl border border-slate-100 shadow-sm flex flex-col justify-between">
+              <div>
+                <h3 className="font-extrabold text-slate-800 text-md flex items-center gap-2">
+                  <Award className="h-5 w-5 text-indigo-600" /> Average Quiz Score by Program
+                </h3>
+                <p className="text-slate-500 text-xs mt-1 leading-relaxed">
+                  Average student scores achieved in syllabus assessment quizzes, grouped by academic programme.
+                </p>
+              </div>
+
+              <div className="mt-6 flex-1 flex flex-col justify-between">
+                {data && data.quizScoreByProgram && data.quizScoreByProgram.length > 0 ? (
+                  <div>
+                    <div className="space-y-4">
+                      {data.quizScoreByProgram.map((entry, index) => {
+                        const score = Math.round(entry.averageScore);
+                        return (
+                          <div key={index} className="space-y-1.5">
+                            <div className="flex justify-between items-center text-[10px] font-mono tracking-wider font-bold text-slate-600 uppercase">
+                              <span>{entry.program.toUpperCase()}</span>
+                              <span>{score}%</span>
+                            </div>
+                            <div className="w-full bg-slate-100 h-2.5 rounded-full overflow-hidden">
+                              <div 
+                                className="h-full rounded-full bg-indigo-500 transition-all duration-1000" 
+                                style={{ width: `${Math.min(100, Math.max(0, score))}%` }}
+                              />
+                            </div>
+                          </div>
+                        );
+                      })}
+                    </div>
+                    
+                    {/* X-Axis Labels */}
+                    <div className="flex justify-between text-[10px] font-mono text-slate-400 mt-6 pt-2 border-t border-slate-100">
+                      <span>0%</span>
+                      <span>25%</span>
+                      <span>50%</span>
+                      <span>75%</span>
+                      <span>100%</span>
+                    </div>
+                  </div>
+                ) : (
+                  <div className="flex items-center justify-center h-48 text-slate-400 text-sm font-medium">
+                    No quiz scores recorded yet.
+                  </div>
+                )}
+              </div>
             </div>
           </div>
 
