@@ -24,6 +24,13 @@ export default function Onboarding() {
         academic_goal: 'Pass All',
     });
 
+    const [semesterOptions, setSemesterOptions] = useState<any[]>([
+        { value: '1', name: '1st Semester', isActiveByDate: true, dateString: 'Jan 1 - Jun 30' },
+        { value: '2', name: '2nd Semester', isActiveByDate: false, dateString: 'Jul 1 - Dec 31' }
+    ]);
+
+    const [selectedSystemSemester, setSelectedSystemSemester] = useState<string>('1');
+
     const requiresCGPA = Number(profileData.level) > 100 || (Number(profileData.level) === 100 && profileData.semester === '2');
 
     useEffect(() => {
@@ -31,6 +38,13 @@ export default function Onboarding() {
             setProfileData(prev => ({ ...prev, current_cgpa: '' }));
         }
     }, [requiresCGPA, profileData.current_cgpa]);
+
+    // Sync system registration window with academic semester on changes
+    useEffect(() => {
+        if (profileData.semester) {
+            setSelectedSystemSemester(profileData.semester);
+        }
+    }, [profileData.semester]);
 
     const [courses, setCourses] = useState<any[]>([]);
 
@@ -60,6 +74,46 @@ export default function Onboarding() {
             }
         };
         fetchPrograms();
+    }, []);
+
+    useEffect(() => {
+        const fetchSemesterWindows = async () => {
+            try {
+                const today = new Date();
+                const { data, error } = await supabase
+                    .from('ActiveSemesterWindow')
+                    .select('*')
+                    .eq('is_active', true)
+                    .order('start_date', { ascending: true });
+
+                if (error) throw error;
+                if (data && data.length > 0) {
+                    const formatted = data.map((win: any) => {
+                        const start = new Date(win.start_date);
+                        const end = new Date(win.end_date);
+                        const isActiveByDate = today >= start && today <= end;
+                        
+                        return {
+                            ...win,
+                            value: win.name === '1st Semester' ? '1' : '2',
+                            isActiveByDate,
+                            dateString: `${start.toLocaleDateString(undefined, { month: 'short', day: 'numeric', year: 'numeric' })} - ${end.toLocaleDateString(undefined, { month: 'short', day: 'numeric', year: 'numeric' })}`
+                        };
+                    });
+                    setSemesterOptions(formatted);
+
+                    // Set default semester to the active one by date
+                    const activeWin = formatted.find(win => win.isActiveByDate);
+                    if (activeWin) {
+                        setProfileData(prev => ({ ...prev, semester: activeWin.value }));
+                        setSelectedSystemSemester(activeWin.value);
+                    }
+                }
+            } catch (err) {
+                console.error('Error fetching semester windows:', err);
+            }
+        };
+        fetchSemesterWindows();
     }, []);
 
     const days = ['Mon', 'Tue', 'Wed', 'Thu', 'Fri', 'Sat', 'Sun'];
@@ -244,31 +298,37 @@ export default function Onboarding() {
 
         setIsSubmitting(true);
         try {
-            // Determine active semester window based on current date
             const today = new Date();
             const currentYear = today.getFullYear();
-            let activeWindowName = '1st Semester';
-            let activeWindowStart = new Date(currentYear, 0, 1).toISOString();
 
-            if (today.getMonth() >= 6) {
-                activeWindowName = '2nd Semester';
-                activeWindowStart = new Date(currentYear, 6, 1).toISOString();
-            }
+            const systemSemInt = parseInt(selectedSystemSemester);
+            const userSelectedSemStr = systemSemInt === 1 ? '1st Semester' : '2nd Semester';
 
-            // Attempt to query ActiveSemesterWindow from DB
-            const { data: activeWindowFromDb } = await supabase
+            // Attempt to query the target window from DB by name
+            const { data: targetWindowFromDb } = await supabase
                 .from('ActiveSemesterWindow')
                 .select('*')
-                .lte('start_date', today.toISOString())
-                .gte('end_date', today.toISOString())
+                .eq('name', userSelectedSemStr)
                 .eq('is_active', true)
+                .order('start_date', { ascending: true })
+                .limit(1)
                 .maybeSingle();
 
-            const activeName = activeWindowFromDb?.name || activeWindowName;
-            const activeStart = activeWindowFromDb?.start_date || activeWindowStart;
+            let targetSemName = userSelectedSemStr;
+            let targetSemStart = '';
 
-            const semInt = parseInt(profileData.semester);
-            const userSelectedSemStr = semInt === 1 ? '1st Semester' : '2nd Semester';
+            if (targetWindowFromDb) {
+                targetSemName = targetWindowFromDb.name;
+                targetSemStart = targetWindowFromDb.start_date;
+            } else {
+                // Fallback calculation
+                if (userSelectedSemStr === "1st Semester") {
+                    const year = today.getMonth() >= 6 ? currentYear + 1 : currentYear;
+                    targetSemStart = new Date(year, 0, 1).toISOString();
+                } else {
+                    targetSemStart = new Date(currentYear, 6, 1).toISOString();
+                }
+            }
 
             // Check if profile exists first
             const { data: existingProfile } = await supabase
@@ -298,7 +358,7 @@ export default function Onboarding() {
                     .upsert({
                         id: crypto.randomUUID(),
                         user_id: user?.id,
-                        semester: userSelectedSemStr
+                        semester: targetSemName
                     }, { onConflict: 'user_id' });
 
                 // Also update current AcademicSession if one exists and is not closed yet
@@ -314,9 +374,9 @@ export default function Onboarding() {
                     await supabase
                         .from('AcademicSession')
                         .update({
-                            semester: activeName,
+                            semester: targetSemName,
                             level: parseInt(profileData.level),
-                            start_date: activeStart
+                            start_date: targetSemStart
                         })
                         .eq('id', activeSession.id);
                 }
@@ -359,18 +419,18 @@ export default function Onboarding() {
                 .upsert({
                     id: crypto.randomUUID(),
                     user_id: user?.id,
-                    semester: userSelectedSemStr
+                    semester: targetSemName
                 }, { onConflict: 'user_id' });
 
-            // Create AcademicSession using the ACTIVE window name and start date
+            // Create AcademicSession using the target window name and start date
             const { error: sessionErr } = await supabase
                 .from('AcademicSession')
                 .insert({
                     id: crypto.randomUUID(),
                     user_id: user?.id,
-                    semester: activeName,
+                    semester: targetSemName,
                     level: parseInt(profileData.level),
-                    start_date: activeStart
+                    start_date: targetSemStart
                 });
             if (sessionErr) throw sessionErr;
 
@@ -748,7 +808,7 @@ export default function Onboarding() {
                                     </select>
                                 </div>
                                 <div>
-                                    <label className="block text-sm font-medium text-gray-700 mb-1">Semester</label>
+                                    <label className="block text-sm font-medium text-gray-700 mb-1">Academic Semester</label>
                                     <select
                                         value={profileData.semester}
                                         onChange={(e) => setProfileData({ ...profileData, semester: e.target.value })}
@@ -777,6 +837,51 @@ export default function Onboarding() {
                                             You can update your CGPA after your first semester results are released.
                                         </p>
                                     )}
+                                </div>
+
+                                <div className="sm:col-span-2">
+                                    <label className="block text-sm font-medium text-gray-700 mb-2">Registration Window</label>
+                                    <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
+                                        {semesterOptions.map((opt) => (
+                                            <div
+                                                key={opt.value}
+                                                onClick={() => setSelectedSystemSemester(opt.value)}
+                                                className={`cursor-pointer border rounded-xl p-3 px-4 flex justify-between items-center transition-all ${
+                                                    selectedSystemSemester === opt.value
+                                                        ? 'border-indigo-600 bg-indigo-50/30 ring-2 ring-indigo-500/10 font-semibold'
+                                                        : 'border-gray-200 hover:border-indigo-300 hover:bg-gray-50/30'
+                                                }`}
+                                            >
+                                                <div>
+                                                    <span className="font-semibold text-gray-900 text-sm">{opt.name}</span>
+                                                    <span className="block text-[11px] text-gray-500 mt-0.5">{opt.dateString}</span>
+                                                </div>
+                                                <div className="flex items-center gap-2">
+                                                    {opt.isActiveByDate ? (
+                                                        <span className="inline-flex items-center px-2 py-0.5 rounded-full text-[10px] font-medium bg-emerald-50 text-emerald-700 border border-emerald-200">
+                                                            Active Semester
+                                                        </span>
+                                                    ) : (
+                                                        <span className="inline-flex items-center px-2 py-0.5 rounded-full text-[10px] font-medium bg-indigo-50 text-indigo-700 border border-indigo-200">
+                                                            Upcoming Semester
+                                                        </span>
+                                                    )}
+                                                    <div className={`w-4 h-4 rounded-full border flex items-center justify-center ${
+                                                        selectedSystemSemester === opt.value
+                                                            ? 'border-indigo-600 bg-indigo-600 text-white'
+                                                            : 'border-gray-300 bg-white'
+                                                    }`}>
+                                                        {selectedSystemSemester === opt.value && (
+                                                            <div className="w-1.5 h-1.5 rounded-full bg-white" />
+                                                        )}
+                                                    </div>
+                                                </div>
+                                            </div>
+                                        ))}
+                                    </div>
+                                    <p className="mt-2 text-xs text-gray-500">
+                                        Specify which academic registration window you want your profile and study plan to be generated in.
+                                    </p>
                                 </div>
                                 <div className="sm:col-span-2">
                                     <label className="block text-sm font-medium text-gray-700 mb-1">Academic Goal</label>

@@ -69,19 +69,30 @@ BEGIN
     next_lvl := profile_rec.level + 100;
   END IF;
 
-  -- 1. Find or create ActiveSemesterWindow for current date
+  -- 1. Determine target semester string
+  IF next_sem = 1 THEN
+    user_selected_sem_str := '1st Semester';
+  ELSE
+    user_selected_sem_str := '2nd Semester';
+  END IF;
+
+  -- 2. Find or create ActiveSemesterWindow matching target semester string
   SELECT * INTO active_window_rec FROM public."ActiveSemesterWindow" 
-  WHERE start_date <= CURRENT_TIMESTAMP AND end_date >= CURRENT_TIMESTAMP AND is_active = true 
+  WHERE name = user_selected_sem_str AND is_active = true 
+  ORDER BY start_date ASC 
   LIMIT 1;
 
   IF active_window_rec.id IS NULL THEN
     curr_yr := EXTRACT(YEAR FROM CURRENT_DATE);
-    IF EXTRACT(MONTH FROM CURRENT_DATE) <= 6 THEN
-      active_window_name := '1st Semester';
+    IF user_selected_sem_str = '1st Semester' THEN
+      -- If today is in second half of the year, first semester starts Jan 1 of next year
+      IF EXTRACT(MONTH FROM CURRENT_DATE) >= 7 THEN
+        curr_yr := curr_yr + 1;
+      END IF;
       active_window_start := MAKE_DATE(curr_yr, 1, 1);
       active_window_end := MAKE_TIMESTAMP(curr_yr, 6, 30, 23, 59, 59);
     ELSE
-      active_window_name := '2nd Semester';
+      -- Second semester starts Jul 1 of current year
       active_window_start := MAKE_DATE(curr_yr, 7, 1);
       active_window_end := MAKE_TIMESTAMP(curr_yr, 12, 31, 23, 59, 59);
     END IF;
@@ -90,7 +101,7 @@ BEGIN
     INSERT INTO public."ActiveSemesterWindow" (id, name, start_date, end_date, is_active, created_at)
     VALUES (
       gen_random_uuid()::text,
-      active_window_name,
+      user_selected_sem_str,
       active_window_start,
       active_window_end,
       true,
@@ -104,12 +115,12 @@ BEGIN
   -- Find current open academic session
   SELECT * INTO current_session_rec FROM public."AcademicSession" WHERE user_id = user_id_param AND end_date IS NULL ORDER BY created_at DESC LIMIT 1;
 
-  -- 2. Archive current session
+  -- 3. Archive current session
   IF current_session_rec.id IS NOT NULL THEN
     UPDATE public."AcademicSession" SET end_date = CURRENT_TIMESTAMP WHERE id = current_session_rec.id;
   END IF;
 
-  -- 3. Create new session anchored to active semester window
+  -- 4. Create new session anchored to the target semester window
   new_session_id := gen_random_uuid()::text;
   INSERT INTO public."AcademicSession" (id, user_id, semester, level, start_date, created_at)
   VALUES (
@@ -121,13 +132,7 @@ BEGIN
     CURRENT_TIMESTAMP
   );
 
-  -- 4. Save UserSelectedSemester
-  IF next_sem = 1 THEN
-    user_selected_sem_str := '1st Semester';
-  ELSE
-    user_selected_sem_str := '2nd Semester';
-  END IF;
-
+  -- 5. Save UserSelectedSemester
   INSERT INTO public."UserSelectedSemester" (id, user_id, semester, created_at)
   VALUES (
     gen_random_uuid()::text,

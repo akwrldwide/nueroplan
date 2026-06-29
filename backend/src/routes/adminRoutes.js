@@ -18,6 +18,7 @@ router.get('/structure', adminController.getAcademicStructure);
 router.post('/sessions', adminController.createSession);
 router.put('/sessions/:id', adminController.updateSession);
 router.delete('/sessions/:id', adminController.deleteSession);
+router.post('/sessions/:id/notify', adminController.notifyStudentsOfSession);
 
 // Semester Windows
 router.post('/windows', adminController.createWindow);
@@ -44,6 +45,7 @@ router.get('/students', adminController.getStudents);
 router.get('/students/:id', adminController.getStudentProfile);
 router.put('/students/:id/active', adminController.toggleStudentActive);
 router.post('/students/:id/regenerate-plan', adminController.regenerateStudentPlan);
+router.post('/students/:id/reset-password', adminController.resetStudentPassword);
 
 // 4. Analytics
 router.get('/analytics', adminController.getCoreAnalytics);

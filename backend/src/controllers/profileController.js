@@ -38,7 +38,7 @@ const getOrCreateActiveSemesterWindow = async (tx = prisma) => {
 
 const createProfile = async (req, res) => {
     try {
-        const { program, level, semester, curriculum_type, current_cgpa, academic_goal } = req.body;
+        const { program, level, semester, systemSemester, curriculum_type, current_cgpa, academic_goal } = req.body;
         const user_id = req.user.id;
 
         const existingProfile = await prisma.academicProfile.findUnique({
@@ -59,8 +59,43 @@ const createProfile = async (req, res) => {
 
         // Perform in a transaction to guarantee consistency
         const profile = await prisma.$transaction(async (tx) => {
-            const activeWindow = await getOrCreateActiveSemesterWindow(tx);
-            const userSelectedSemStr = parsedSemester === 1 ? '1st Semester' : '2nd Semester';
+            const systemSemVal = systemSemester ? parseInt(systemSemester) : (parsedSemester === 1 ? 1 : 2);
+            const userSelectedSemStr = systemSemVal === 1 ? '1st Semester' : '2nd Semester';
+
+            // Find target semester window matching userSelectedSemStr
+            let targetWindow = await tx.activeSemesterWindow.findFirst({
+                where: {
+                    name: userSelectedSemStr,
+                    is_active: true
+                },
+                orderBy: {
+                    start_date: 'asc'
+                }
+            });
+
+            if (!targetWindow) {
+                const today = new Date();
+                const currentYear = today.getFullYear();
+                let start, end;
+
+                if (userSelectedSemStr === "1st Semester") {
+                    const year = today.getMonth() >= 6 ? currentYear + 1 : currentYear;
+                    start = new Date(year, 0, 1);
+                    end = new Date(year, 5, 30, 23, 59, 59, 999);
+                } else {
+                    start = new Date(currentYear, 6, 1);
+                    end = new Date(currentYear, 11, 31, 23, 59, 59, 999);
+                }
+
+                targetWindow = await tx.activeSemesterWindow.create({
+                    data: {
+                        name: userSelectedSemStr,
+                        start_date: start,
+                        end_date: end,
+                        is_active: true
+                    }
+                });
+            }
 
             // Create Academic Profile
             const prof = await tx.academicProfile.create({
@@ -87,13 +122,13 @@ const createProfile = async (req, res) => {
                 }
             });
 
-            // Create Academic Session anchored to active semester window
+            // Create Academic Session anchored to selected semester window
             await tx.academicSession.create({
                 data: {
                     user_id,
-                    semester: activeWindow.name,
+                    semester: targetWindow.name,
                     level: parsedLevel,
-                    start_date: activeWindow.start_date,
+                    start_date: targetWindow.start_date,
                     end_date: null
                 }
             });

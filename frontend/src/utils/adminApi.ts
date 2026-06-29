@@ -1,29 +1,28 @@
-import { supabase } from '../supabaseClient';
+export async function adminFetch(path: string, token: string | null, options: RequestInit = {}) {
+  const API_URL = import.meta.env.VITE_API_URL || 'http://localhost:5000';
+  const url = `${API_URL}/api/admin${path}`;
 
-export async function adminFetch(path: string, _token: string | null, options: RequestInit = {}) {
-  const reqBody = options.body ? JSON.parse(options.body as string) : undefined;
+  const headers: HeadersInit = {
+    'Content-Type': 'application/json',
+  };
 
-  const { data, error } = await supabase.functions.invoke('admin-api', {
-    body: {
-      path,
-      method: options.method || 'GET',
-      data: reqBody
-    }
-  });
-
-  if (error) {
-    let errorMsg = error.message;
-    if ('context' in error) {
-      try {
-        const bodyText = await (error as any).context.text();
-        const parsed = JSON.parse(bodyText);
-        errorMsg = parsed.error || parsed.message || errorMsg;
-      } catch {
-        // Fallback to default message
-      }
-    }
-    throw new Error(errorMsg || 'Edge Function Invocation Error');
+  if (token) {
+    headers['Authorization'] = `Bearer ${token}`;
   }
 
-  return data;
+  const response = await fetch(url, {
+    ...options,
+    headers: {
+      ...headers,
+      ...options.headers,
+    },
+  });
+
+  if (!response.ok) {
+    const errorData = await response.json().catch(() => ({}));
+    const errorMsg = errorData.message || errorData.error || `Request failed with status ${response.status}`;
+    throw new Error(errorMsg);
+  }
+
+  return response.json();
 }

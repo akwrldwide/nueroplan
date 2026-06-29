@@ -748,6 +748,167 @@ const changeAdminPassword = async (req, res) => {
     }
 };
 
+const nodemailer = require('nodemailer');
+
+const sendEmailSMTP = async (to, subject, htmlContent) => {
+    const smtpHost = process.env.SMTP_HOST || 'smtp.gmail.com';
+    const smtpPort = parseInt(process.env.SMTP_PORT || '465');
+    const smtpUser = process.env.SMTP_USER;
+    const smtpPass = process.env.SMTP_PASS;
+
+    if (!smtpUser || !smtpPass) {
+        throw new Error('SMTP credentials are not configured');
+    }
+
+    const transporter = nodemailer.createTransport({
+        host: smtpHost,
+        port: smtpPort,
+        secure: smtpPort === 465,
+        auth: {
+            user: smtpUser,
+            pass: smtpPass
+        }
+    });
+
+    await transporter.sendMail({
+        from: `"NeuroPlan" <${smtpUser}>`,
+        to,
+        subject,
+        html: htmlContent
+    });
+};
+
+const notifyStudentsOfSession = async (req, res) => {
+    try {
+        const { id } = req.params;
+
+        const session = await prisma.globalAcademicSession.findUnique({
+            where: { id }
+        });
+
+        if (!session) {
+            return res.status(404).json({ message: 'Session not found' });
+        }
+
+        const students = await prisma.user.findMany({
+            where: {
+                role: 'STUDENT',
+                NOT: {
+                    email: { startsWith: 'test_' }
+                }
+            },
+            select: {
+                email: true,
+                name: true
+            }
+        });
+
+        const emailList = students.map(s => s.email).filter(Boolean);
+        if (emailList.length === 0) {
+            return res.json({ message: 'No students found to notify.' });
+        }
+
+        const subject = `Registration Open: ${session.name} - NeuroPlan`;
+        const htmlContent = `
+          <div style="font-family: sans-serif; max-width: 600px; margin: 0 auto; padding: 20px; border: 1px solid #e2e8f0; border-radius: 12px;">
+            <h2 style="color: #4f46e5; margin-bottom: 16px;">Next Semester Registration is Open!</h2>
+            <p>Hello,</p>
+            <p>We are excited to announce that the new academic session <strong>${session.name}</strong> has been officially opened.</p>
+            <p>Please log in to your NeuroPlan dashboard to select your courses and generate your customized study plans for this semester.</p>
+            <div style="margin: 24px 0;">
+              <a href="https://neuroplan-v2.vercel.app/" style="background-color: #4f46e5; color: white; padding: 12px 24px; text-decoration: none; border-radius: 8px; font-weight: bold; display: inline-block;">Go to Dashboard</a>
+            </div>
+            <hr style="border: none; border-top: 1px solid #f1f5f9; margin: 24px 0;" />
+            <p style="font-size: 11px; color: #64748b; margin-top: 16px;">This is an automated notification from NeuroPlan. If you have any questions, please contact your administrator.</p>
+          </div>
+        `;
+
+        let sentCount = 0;
+        const failedEmails = [];
+
+        for (const email of emailList) {
+            try {
+                await sendEmailSMTP(email, subject, htmlContent);
+                sentCount++;
+            } catch (err) {
+                console.error(`Failed to send email to ${email}:`, err);
+                failedEmails.push(email);
+            }
+        }
+
+        res.json({
+            message: `Notification emails processed. Sent to ${sentCount} students.`,
+            failedEmails
+        });
+    } catch (error) {
+        console.error(error);
+        res.status(500).json({ message: 'Error notifying students' });
+    }
+};
+
+const resetStudentPassword = async (req, res) => {
+    try {
+        const { id } = req.params;
+
+        const student = await prisma.user.findUnique({
+            where: { id }
+        });
+
+        if (!student) {
+            return res.status(404).json({ message: 'Student not found' });
+        }
+
+        const chars = "ABCDEFGHIJKLMNOPQRSTUVWXYZabcdefghijklmnopqrstuvwxyz0123456789!@#$%^&*";
+        let tempPassword = "";
+        for (let i = 0; i < 12; i++) {
+            tempPassword += chars.charAt(Math.floor(Math.random() * chars.length));
+        }
+
+        const salt = await bcrypt.genSalt(10);
+        const hashedPassword = await bcrypt.hash(tempPassword, salt);
+
+        await prisma.$executeRawUnsafe(
+            'UPDATE auth.users SET encrypted_password = $1 WHERE id = cast($2 as uuid)',
+            hashedPassword,
+            id
+        );
+
+        const subject = 'Your Password Has Been Reset - NeuroPlan';
+        const htmlContent = `
+          <div style="font-family: sans-serif; max-width: 600px; margin: 0 auto; padding: 20px; border: 1px solid #e2e8f0; border-radius: 12px;">
+            <h2 style="color: #4f46e5; margin-bottom: 16px;">Temporary Password Generated</h2>
+            <p>Hello ${student.name || 'Student'},</p>
+            <p>Your administrator has reset your password for your <strong>NeuroPlan</strong> account.</p>
+            <p>Your temporary password is: <strong style="font-size: 16px; background-color: #f1f5f9; padding: 6px 12px; border-radius: 4px; font-family: monospace; display: inline-block; margin: 8px 0; border: 1px solid #cbd5e1; color: #0f172a;">${tempPassword}</strong></p>
+            <p>Please log in using this temporary password and update it immediately in your settings.</p>
+            <div style="margin: 24px 0;">
+              <a href="https://neuroplan-v2.vercel.app/" style="background-color: #4f46e5; color: white; padding: 12px 24px; text-decoration: none; border-radius: 8px; font-weight: bold; display: inline-block;">Login to Dashboard</a>
+            </div>
+            <p style="font-size: 11px; color: #64748b; margin-top: 16px;">This email was sent from your administration. If you did not request a password reset, please contact your administrator.</p>
+          </div>
+        `;
+
+        try {
+            await sendEmailSMTP(student.email, subject, htmlContent);
+        } catch (emailErr) {
+            console.error('Failed to send reset password email:', emailErr);
+            return res.json({
+                message: 'Student password reset successfully but email notification failed',
+                temporaryPassword: tempPassword,
+                emailError: emailErr.message
+            });
+        }
+
+        res.json({
+            message: 'Student password reset successfully',
+            temporaryPassword: tempPassword
+        });
+    } catch (error) {
+        console.error(error);
+        res.status(500).json({ message: 'Error resetting student password' });
+    }
+};
+
 module.exports = {
     getDashboardStats,
     getAcademicStructure,
@@ -776,5 +937,7 @@ module.exports = {
     getAdmins,
     addAdmin,
     removeAdmin,
-    changeAdminPassword
+    changeAdminPassword,
+    notifyStudentsOfSession,
+    resetStudentPassword
 };
