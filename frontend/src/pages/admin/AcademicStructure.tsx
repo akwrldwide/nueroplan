@@ -11,7 +11,8 @@ import {
   Folder, 
   Book, 
   FileCode, 
-  Loader2
+  Loader2,
+  Mail
 } from 'lucide-react';
 
 interface Session {
@@ -80,6 +81,7 @@ export default function AcademicStructure() {
   const [modalMode, setModalMode] = useState<'create' | 'edit'>('create');
   const [editId, setEditId] = useState('');
   const [modalData, setModalData] = useState<any>({});
+  const [notifying, setNotifying] = useState<string | null>(null);
 
   const fetchStructure = async () => {
     try {
@@ -188,6 +190,21 @@ export default function AcademicStructure() {
       fetchStructure();
     } catch (err: any) {
       alert(err.message || 'Failed to activate session.');
+    }
+  };
+
+  const handleNotifyStudents = async (sessionId: string) => {
+    try {
+      setNotifying(sessionId);
+      const res = await adminFetch(`/sessions/${sessionId}/notify`, token, {
+        method: 'POST'
+      });
+      alert(res.message || 'Notification emails sent successfully!');
+    } catch (err: any) {
+      console.error(err);
+      alert(err.message || 'Failed to send notification emails.');
+    } finally {
+      setNotifying(null);
     }
   };
 
@@ -350,6 +367,20 @@ export default function AcademicStructure() {
                       </td>
                       <td className="px-6 py-4 text-right">
                         <div className="flex justify-end gap-2.5">
+                          {s.status === 'ACTIVE' && (
+                            <button
+                              onClick={() => handleNotifyStudents(s.id)}
+                              disabled={notifying !== null}
+                              className="text-xs font-bold text-indigo-650 hover:text-indigo-800 px-2.5 py-1.5 rounded-lg hover:bg-indigo-50 transition-colors cursor-pointer border border-transparent hover:border-indigo-200 flex items-center gap-1 disabled:opacity-50"
+                            >
+                              {notifying === s.id ? (
+                                <Loader2 className="h-3.5 w-3.5 animate-spin" />
+                              ) : (
+                                <Mail className="h-3.5 w-3.5" />
+                              )}
+                              Notify Students
+                            </button>
+                          )}
                           {s.status !== 'ACTIVE' && (
                             <button
                               onClick={() => handleActivateSession(s.id)}

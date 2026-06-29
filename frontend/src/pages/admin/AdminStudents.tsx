@@ -15,7 +15,8 @@ import {
   ChevronRight,
   ChevronDown,
   Layers,
-  GraduationCap
+  GraduationCap,
+  Key
 } from 'lucide-react';
 
 interface Student {
@@ -46,6 +47,7 @@ export default function AdminStudents() {
   const [profileData, setProfileData] = useState<any>(null);
   const [loadingProfile, setLoadingProfile] = useState(false);
   const [recalculatingPlan, setRecalculatingPlan] = useState(false);
+  const [resettingPassword, setResettingPassword] = useState(false);
 
   // Accordion Expand States for nested tree display
   const [expandedPrograms, setExpandedPrograms] = useState<Record<string, boolean>>({});
@@ -123,6 +125,22 @@ export default function AdminStudents() {
       alert(err.message || 'Error occurred during plan regeneration.');
     } finally {
       setRecalculatingPlan(false);
+    }
+  };
+
+  const handleResetPassword = async (studentId: string) => {
+    if (!confirm("Are you sure you want to reset this student's password? A temporary password will be generated and emailed to them.")) return;
+    setResettingPassword(true);
+    try {
+      const res = await adminFetch(`/students/${studentId}/reset-password`, token, {
+        method: 'POST'
+      });
+      alert(`✓ Password successfully reset!\nTemporary password: ${res.temporaryPassword}\nEmail notification sent.`);
+    } catch (err: any) {
+      console.error(err);
+      alert(err.message || 'Failed to reset password.');
+    } finally {
+      setResettingPassword(false);
     }
   };
 
@@ -574,37 +592,54 @@ export default function AdminStudents() {
                           Force the algorithm scheduler to instantly rebuild and prioritize the student's study plan based on their active weights.
                         </p>
                       </div>
-                      <div className="flex gap-2 mt-4">
+                      <div className="flex flex-col gap-2 mt-4">
+                        <div className="flex gap-2">
+                          <button
+                            onClick={() => handleRegeneratePlan(profileData.id)}
+                            disabled={recalculatingPlan}
+                            className="flex-1 flex items-center justify-center gap-1.5 bg-indigo-600 hover:bg-indigo-700 text-white font-bold text-xs py-2.5 px-4 rounded-xl transition-all cursor-pointer shadow-sm disabled:opacity-50 disabled:cursor-not-allowed"
+                          >
+                            {recalculatingPlan ? (
+                              <>
+                                <Loader2 className="h-4 w-4 animate-spin" /> Regenerating...
+                              </>
+                            ) : (
+                              <>
+                                <RotateCw className="h-4 w-4" /> Regenerate Study Plan
+                              </>
+                            )}
+                          </button>
+                          <button
+                            onClick={() => handleToggleActive(profileData)}
+                            className={`flex-1 flex items-center justify-center gap-1.5 border font-bold text-xs py-2.5 px-4 rounded-xl transition-all cursor-pointer ${
+                              profileData.is_active 
+                                ? 'border-red-200 text-red-600 hover:bg-red-50' 
+                                : 'border-emerald-200 text-emerald-600 hover:bg-emerald-50'
+                            }`}
+                          >
+                            {profileData.is_active ? (
+                              <>
+                                <Lock className="h-4 w-4" /> Deactivate Account
+                              </>
+                            ) : (
+                              <>
+                                <Unlock className="h-4 w-4" /> Activate Account
+                              </>
+                            )}
+                          </button>
+                        </div>
                         <button
-                          onClick={() => handleRegeneratePlan(profileData.id)}
-                          disabled={recalculatingPlan}
-                          className="flex-1 flex items-center justify-center gap-1.5 bg-indigo-600 hover:bg-indigo-700 text-white font-bold text-xs py-2.5 px-4 rounded-xl transition-all cursor-pointer shadow-sm disabled:opacity-50 disabled:cursor-not-allowed"
+                          onClick={() => handleResetPassword(profileData.id)}
+                          disabled={resettingPassword}
+                          className="w-full flex items-center justify-center gap-1.5 border border-slate-200 text-slate-700 hover:bg-slate-50 font-bold text-xs py-2.5 px-4 rounded-xl transition-all cursor-pointer disabled:opacity-50"
                         >
-                          {recalculatingPlan ? (
+                          {resettingPassword ? (
                             <>
-                              <Loader2 className="h-4 w-4 animate-spin" /> Regenerating...
+                              <Loader2 className="h-4 w-4 animate-spin" /> Resetting...
                             </>
                           ) : (
                             <>
-                              <RotateCw className="h-4 w-4" /> Regenerate Study Plan
-                            </>
-                          )}
-                        </button>
-                        <button
-                          onClick={() => handleToggleActive(profileData)}
-                          className={`flex items-center justify-center gap-1.5 border font-bold text-xs py-2.5 px-4 rounded-xl transition-all cursor-pointer ${
-                            profileData.is_active 
-                              ? 'border-red-200 text-red-600 hover:bg-red-50' 
-                              : 'border-emerald-200 text-emerald-600 hover:bg-emerald-50'
-                          }`}
-                        >
-                          {profileData.is_active ? (
-                            <>
-                              <Lock className="h-4 w-4" /> Deactivate Account
-                            </>
-                          ) : (
-                            <>
-                              <Unlock className="h-4 w-4" /> Activate Account
+                              <Key className="h-4 w-4 text-indigo-500" /> Reset Password
                             </>
                           )}
                         </button>

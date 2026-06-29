@@ -155,21 +155,102 @@ Deno.serve(async (req) => {
 
     } else if (resource === 'sessions') {
       if (method === 'POST') {
-        const { name, start_date, end_date, registration_opens, registration_closes, status: activeStatus } = data;
-        if (activeStatus === 'ACTIVE') {
-          await supabaseAdmin.from('GlobalAcademicSession').update({ status: 'CLOSED' }).eq('status', 'ACTIVE');
+        if (segments[2] === 'notify') {
+          const { data: session, error: sessErr } = await supabaseAdmin
+            .from('GlobalAcademicSession')
+            .select('*')
+            .eq('id', id)
+            .maybeSingle();
+
+          if (sessErr || !session) {
+            return new Response(JSON.stringify({ error: 'Session not found' }), {
+              status: 404,
+              headers: { ...corsHeaders, 'Content-Type': 'application/json' }
+            });
+          }
+
+          const { data: students, error: studErr } = await supabaseAdmin
+            .from('User')
+            .select('email, name')
+            .eq('role', 'STUDENT')
+            .not('email', 'like', 'test_%');
+
+          if (studErr) throw studErr;
+
+          const emailList = students?.map((s: any) => s.email) || [];
+          if (emailList.length === 0) {
+            resultData = { message: 'No students found to notify.' };
+          } else {
+            const apiKey = Deno.env.get('RESEND_API_KEY') || 're_EgrZopCy_5cquThgAkaQebtwYsrbku74a';
+            const subject = `Registration Open: ${session.name} - NeuroPlan`;
+            
+            const htmlContent = `
+              <div style="font-family: sans-serif; max-width: 600px; margin: 0 auto; padding: 20px; border: 1px solid #e2e8f0; border-radius: 12px;">
+                <h2 style="color: #4f46e5; margin-bottom: 16px;">Next Semester Registration is Open!</h2>
+                <p>Hello,</p>
+                <p>We are excited to announce that the new academic session <strong>${session.name}</strong> has been officially opened.</p>
+                <p>Please log in to your NeuroPlan dashboard to select your courses and generate your customized study plans for this semester.</p>
+                <div style="margin: 24px 0;">
+                  <a href="https://neuroplan-v2.vercel.app/" style="background-color: #4f46e5; color: white; padding: 12px 24px; text-decoration: none; border-radius: 8px; font-weight: bold; display: inline-block;">Go to Dashboard</a>
+                </div>
+                <hr style="border: none; border-top: 1px solid #f1f5f9; margin: 24px 0;" />
+                <p style="font-size: 11px; color: #64748b; margin-top: 16px;">This is an automated notification from NeuroPlan. If you have any questions, please contact your administrator.</p>
+              </div>
+            `;
+
+            let sentCount = 0;
+            const errors = [];
+
+            for (const email of emailList) {
+              try {
+                const mailRes = await fetch('https://api.resend.com/emails', {
+                  method: 'POST',
+                  headers: {
+                    'Authorization': `Bearer ${apiKey}`,
+                    'Content-Type': 'application/json'
+                  },
+                  body: JSON.stringify({
+                    from: 'NeuroPlan <onboarding@resend.dev>',
+                    to: [email],
+                    subject,
+                    html: htmlContent
+                  })
+                });
+                if (mailRes.ok) {
+                  sentCount++;
+                } else {
+                  const errTxt = await mailRes.text();
+                  console.error(`Resend error for ${email}:`, errTxt);
+                  errors.push(email);
+                }
+              } catch (e: any) {
+                console.error(`Failed to send email to ${email}:`, e);
+                errors.push(email);
+              }
+            }
+
+            resultData = {
+              message: `Notification emails processed. Sent to ${sentCount} students.`,
+              failedEmails: errors
+            };
+          }
+        } else {
+          const { name, start_date, end_date, registration_opens, registration_closes, status: activeStatus } = data;
+          if (activeStatus === 'ACTIVE') {
+            await supabaseAdmin.from('GlobalAcademicSession').update({ status: 'CLOSED' }).eq('status', 'ACTIVE');
+          }
+          const { data: newSession, error: createErr } = await supabaseAdmin.from('GlobalAcademicSession').insert({
+            name,
+            start_date: new Date(start_date).toISOString(),
+            end_date: new Date(end_date).toISOString(),
+            registration_opens: new Date(registration_opens).toISOString(),
+            registration_closes: new Date(registration_closes).toISOString(),
+            status: activeStatus || 'UPCOMING'
+          }).select().single();
+          if (createErr) throw createErr;
+          resultData = newSession;
+          status = 201;
         }
-        const { data: newSession, error: createErr } = await supabaseAdmin.from('GlobalAcademicSession').insert({
-          name,
-          start_date: new Date(start_date).toISOString(),
-          end_date: new Date(end_date).toISOString(),
-          registration_opens: new Date(registration_opens).toISOString(),
-          registration_closes: new Date(registration_closes).toISOString(),
-          status: activeStatus || 'UPCOMING'
-        }).select().single();
-        if (createErr) throw createErr;
-        resultData = newSession;
-        status = 201;
       } else if (method === 'PUT' && id) {
         const { name, start_date, end_date, registration_opens, registration_closes, status: activeStatus } = data;
         if (activeStatus === 'ACTIVE') {
@@ -350,6 +431,76 @@ Deno.serve(async (req) => {
             resultData = {
               message: `Account successfully ${updatedStudent.is_active ? 'activated' : 'deactivated'}`,
               student: { id: updatedStudent.id, is_active: updatedStudent.is_active }
+            };
+          } else if (subaction === 'reset-password' && method === 'POST') {
+            const chars = "ABCDEFGHIJKLMNOPQRSTUVWXYZabcdefghijklmnopqrstuvwxyz0123456789!@#$%^&*";
+            let tempPassword = "";
+            for (let i = 0; i < 12; i++) {
+              tempPassword += chars.charAt(Math.floor(Math.random() * chars.length));
+            }
+
+            const { data: student, error: getErr } = await supabaseAdmin
+              .from('User')
+              .select('email, name')
+              .eq('id', id)
+              .maybeSingle();
+
+            if (getErr || !student) {
+              return new Response(JSON.stringify({ error: 'Student not found' }), {
+                status: 404,
+                headers: { ...corsHeaders, 'Content-Type': 'application/json' }
+              });
+            }
+
+            const { error: resetErr } = await supabaseAdmin.auth.admin.updateUserById(id, { 
+              password: tempPassword 
+            });
+
+            if (resetErr) throw resetErr;
+
+            const apiKey = Deno.env.get('RESEND_API_KEY') || 're_EgrZopCy_5cquThgAkaQebtwYsrbku74a';
+            const subject = 'Your Password Has Been Reset - NeuroPlan';
+            
+            const htmlContent = `
+              <div style="font-family: sans-serif; max-width: 600px; margin: 0 auto; padding: 20px; border: 1px solid #e2e8f0; border-radius: 12px;">
+                <h2 style="color: #4f46e5; margin-bottom: 16px;">Temporary Password Generated</h2>
+                <p>Hello ${student.name || 'Student'},</p>
+                <p>Your administrator has reset your password for your <strong>NeuroPlan</strong> account.</p>
+                <p>Your temporary password is: <strong style="font-size: 16px; background-color: #f1f5f9; padding: 6px 12px; border-radius: 4px; font-family: monospace; display: inline-block; margin: 8px 0; border: 1px solid #cbd5e1; color: #0f172a;">${tempPassword}</strong></p>
+                <p>Please log in using this temporary password and update it immediately in your settings.</p>
+                <div style="margin: 24px 0;">
+                  <a href="https://neuroplan-v2.vercel.app/" style="background-color: #4f46e5; color: white; padding: 12px 24px; text-decoration: none; border-radius: 8px; font-weight: bold; display: inline-block;">Login to Dashboard</a>
+                </div>
+                <hr style="border: none; border-top: 1px solid #f1f5f9; margin: 24px 0;" />
+                <p style="font-size: 11px; color: #64748b; margin-top: 16px;">This email was sent using Resend. If you did not request a password reset, please contact your administrator.</p>
+              </div>
+            `;
+
+            try {
+              const mailRes = await fetch('https://api.resend.com/emails', {
+                method: 'POST',
+                headers: {
+                  'Authorization': `Bearer ${apiKey}`,
+                  'Content-Type': 'application/json'
+                },
+                body: JSON.stringify({
+                  from: 'NeuroPlan <onboarding@resend.dev>',
+                  to: [student.email],
+                  subject,
+                  html: htmlContent
+                })
+              });
+              if (!mailRes.ok) {
+                const errTxt = await mailRes.text();
+                console.error(`Resend reset password email failed:`, errTxt);
+              }
+            } catch (emailErr) {
+              console.error('Failed to send Resend reset password email:', emailErr);
+            }
+
+            resultData = { 
+              message: 'Student password reset successfully', 
+              temporaryPassword: tempPassword 
             };
           } else if (subaction === 'regenerate-plan' && method === 'POST') {
             // Trigger Edge Function generate-plan using internal fetch
