@@ -27,7 +27,7 @@ const ProtectedRoute = ({ children, requireProfile = false }: { children: React.
   const { user, loading } = useContext(AuthContext);
 
   if (loading) {
-    return <div className="h-screen flex items-center justify-center text-gray-500">Loading Nuero Plan...</div>;
+    return <div className="h-screen flex items-center justify-center text-gray-500">Loading NeuroPlan...</div>;
   }
 
   if (!user) {
@@ -49,7 +49,7 @@ const AdminRoute = ({ children }: { children: React.ReactNode }) => {
   const { user, loading } = useContext(AuthContext);
 
   if (loading) {
-    return <div className="h-screen flex items-center justify-center text-gray-500">Loading Nuero Plan...</div>;
+    return <div className="h-screen flex items-center justify-center text-gray-500">Loading NeuroPlan...</div>;
   }
 
   if (!user) {

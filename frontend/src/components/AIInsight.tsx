@@ -12,7 +12,7 @@ export default function AIInsight({ insight, isLoading }: AIInsightProps) {
         <BrainCircuit className="w-8 h-8 text-white" />
       </div>
       <div className="w-full">
-        <h3 className="text-lg font-bold">Nuero Insight</h3>
+        <h3 className="text-lg font-bold">NeuroPlan Insight</h3>
         {isLoading ? (
           <div className="mt-2 space-y-2">
             <div className="h-4 bg-indigo-400/30 rounded animate-pulse w-3/4"></div>

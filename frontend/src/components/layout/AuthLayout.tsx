@@ -22,7 +22,7 @@ export default function AuthLayout({ children }: AuthLayoutProps) {
                         <div className="bg-white/10 p-2 rounded-xl backdrop-blur-md border border-white/20">
                             <BrainCircuit className="text-white w-8 h-8" />
                         </div>
-                        <span className="font-bold text-2xl tracking-tight">Nuero Plan</span>
+                        <span className="font-bold text-2xl tracking-tight">NeuroPlan</span>
                     </Link>
 
                     <div className="max-w-md mt-12 animate-fade-in">
@@ -73,7 +73,7 @@ export default function AuthLayout({ children }: AuthLayoutProps) {
                     <div className="bg-indigo-600 p-2 rounded-xl">
                         <BrainCircuit className="text-white w-6 h-6" />
                     </div>
-                    <span className="font-bold text-xl text-gray-900 tracking-tight">Nuero Plan</span>
+                    <span className="font-bold text-xl text-gray-900 tracking-tight">NeuroPlan</span>
                 </div>
 
                 <div className="w-full max-w-md mx-auto">

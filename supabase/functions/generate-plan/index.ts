@@ -84,26 +84,50 @@ Deno.serve(async (req) => {
       });
     }
 
-    const supabaseClient = createClient(supabaseUrl, supabaseAnonKey, {
-      global: { headers: { Authorization: authHeader } }
-    });
+    const body = await req.json().catch(() => ({}));
+    const { fullRecalculate = false, forceFullSemester = false, userId: targetUserId } = body;
 
-    const { data: { user }, error: authError } = await supabaseClient.auth.getUser();
-    if (authError || !user) {
-      return new Response(JSON.stringify({ error: 'Unauthorized user token' }), {
-        status: 401,
-        headers: { ...corsHeaders, 'Content-Type': 'application/json' }
+    let user_id = '';
+    const isServiceRole = authHeader === `Bearer ${supabaseServiceKey}` || (supabaseServiceKey && authHeader.includes(supabaseServiceKey));
+
+    if (isServiceRole) {
+      if (!targetUserId) {
+        return new Response(JSON.stringify({ error: 'Missing target userId for service role invocation' }), {
+          status: 400,
+          headers: { ...corsHeaders, 'Content-Type': 'application/json' }
+        });
+      }
+      user_id = targetUserId;
+    } else {
+      const supabaseClient = createClient(supabaseUrl, supabaseAnonKey, {
+        global: { headers: { Authorization: authHeader } }
       });
-    }
 
-    const user_id = user.id;
+      const { data: { user }, error: authError } = await supabaseClient.auth.getUser();
+      if (authError || !user) {
+        return new Response(JSON.stringify({ error: 'Unauthorized user token' }), {
+          status: 401,
+          headers: { ...corsHeaders, 'Content-Type': 'application/json' }
+        });
+      }
+
+      // Check if caller is an admin
+      const supabaseAdminTemp = createClient(supabaseUrl, supabaseServiceKey);
+      const { data: callerUserObj } = await supabaseAdminTemp
+        .from('User')
+        .select('role')
+        .eq('id', user.id)
+        .maybeSingle();
+
+      if (callerUserObj?.role === 'ADMIN' && targetUserId) {
+        user_id = targetUserId;
+      } else {
+        user_id = user.id;
+      }
+    }
 
     // Use admin client for DB operations (bypass RLS where needed)
     const supabaseAdmin = createClient(supabaseUrl, supabaseServiceKey);
-
-    // Parse request body
-    const body = await req.json().catch(() => ({}));
-    const { fullRecalculate = false, forceFullSemester = false } = body;
 
     // Fetch Academic Profile
     const { data: profile, error: profileErr } = await supabaseAdmin

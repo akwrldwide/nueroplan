@@ -702,7 +702,7 @@ export default function Onboarding() {
                             </div>
                             <div className="ml-3">
                                 <p className="text-sm text-amber-700 font-medium">
-                                    Welcome back! Please complete your setup to access the Nuero Plan dashboard.
+                                    Welcome back! Please complete your setup to access the NeuroPlan dashboard.
                                 </p>
                             </div>
                         </div>

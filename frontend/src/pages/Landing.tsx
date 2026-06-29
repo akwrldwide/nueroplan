@@ -27,7 +27,7 @@ export default function Landing() {
                             <div className="bg-indigo-600 p-1.5 rounded-lg shadow-md shadow-indigo-200">
                                 <BrainCircuit className="text-white w-6 h-6" />
                             </div>
-                            <span className="font-bold text-xl text-gray-900 tracking-tight">Nuero Plan</span>
+                            <span className="font-bold text-xl text-gray-900 tracking-tight">NeuroPlan</span>
                         </div>
                         <div className="hidden md:flex items-center gap-4">
                             <Link to="/login" className="text-sm font-medium text-gray-600 hover:text-indigo-600 transition">Log in</Link>
@@ -52,7 +52,7 @@ export default function Landing() {
                         <div className="flex items-center justify-between h-16 px-4 border-b border-gray-100">
                             <div className="flex items-center gap-2">
                                 <BrainCircuit className="text-indigo-600 w-6 h-6" />
-                                <span className="font-bold text-lg text-gray-900">Nuero Plan</span>
+                                <span className="font-bold text-lg text-gray-900">NeuroPlan</span>
                             </div>
                             <button onClick={() => setIsMobileMenuOpen(false)} className="text-gray-400 hover:text-gray-600">
                                 <CloseIcon className="w-5 h-5" />
@@ -206,7 +206,7 @@ export default function Landing() {
                     <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
                         <div className="text-center max-w-3xl mx-auto mb-16">
                             <h2 className="text-3xl font-bold text-gray-900 mb-4">A complete system for academic success</h2>
-                            <p className="text-gray-500 text-lg">Nuero Plan doesn't just build a schedule; it builds a strategy tailored entirely to your specific goals and curriculum.</p>
+                            <p className="text-gray-500 text-lg">NeuroPlan doesn't just build a schedule; it builds a strategy tailored entirely to your specific goals and curriculum.</p>
                         </div>
                         
                         <div className="grid grid-cols-1 md:grid-cols-3 gap-8">
@@ -223,7 +223,7 @@ export default function Landing() {
                                     <Clock className="w-8 h-8" />
                                 </div>
                                 <h3 className="text-xl font-bold text-gray-900 mb-3">Adaptive Scheduling</h3>
-                                <p className="text-gray-500 leading-relaxed">Input your free hours and let Nuero Plan dynamically distribute study sessions based on course difficulty and exam proximity.</p>
+                                <p className="text-gray-500 leading-relaxed">Input your free hours and let NeuroPlan dynamically distribute study sessions based on course difficulty and exam proximity.</p>
                             </div>
                             
                             <div className="group bg-white p-8 rounded-2xl border border-gray-100 text-center shadow-sm hover:shadow-xl hover:-translate-y-2 transition-all duration-300">
@@ -305,9 +305,9 @@ export default function Landing() {
                 <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 flex flex-col md:flex-row justify-between items-center gap-4">
                     <div className="flex items-center gap-2">
                         <BrainCircuit className="text-indigo-600 w-6 h-6" />
-                        <span className="font-bold text-xl text-gray-900 tracking-tight">Nuero Plan</span>
+                        <span className="font-bold text-xl text-gray-900 tracking-tight">NeuroPlan</span>
                     </div>
-                    <p className="text-gray-400 text-sm">© 2026 Nuero Plan. All rights reserved.</p>
+                    <p className="text-gray-400 text-sm">© 2026 NeuroPlan. All rights reserved.</p>
                     <div className="flex gap-4">
                         <span className="text-sm text-gray-500 hover:text-gray-900 cursor-pointer">Privacy</span>
                         <span className="text-sm text-gray-500 hover:text-gray-900 cursor-pointer">Terms</span>

@@ -301,7 +301,7 @@ export default function CourseList() {
                                 <div className="bg-indigo-600 p-1.5 rounded-lg">
                                     <BrainCircuit className="text-white w-6 h-6" />
                                 </div>
-                                <span className="font-bold text-xl text-gray-900 tracking-tight">Nuero Plan</span>
+                                <span className="font-bold text-xl text-gray-900 tracking-tight">NeuroPlan</span>
                             </Link>
                         </div>
                         

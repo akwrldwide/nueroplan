@@ -161,7 +161,7 @@ export default function Quiz() {
                             <div className="bg-indigo-600 p-1.5 rounded-lg">
                                 <BrainCircuit className="text-white w-6 h-6" />
                             </div>
-                            <span className="font-bold text-xl text-gray-900 tracking-tight">Nuero Plan</span>
+                            <span className="font-bold text-xl text-gray-900 tracking-tight">NeuroPlan</span>
                         </Link>
                         <Link to="/courses" className="text-sm font-medium text-gray-500 hover:text-indigo-600 transition">Back to Courses</Link>
                     </div>
