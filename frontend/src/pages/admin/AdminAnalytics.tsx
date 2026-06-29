@@ -165,6 +165,8 @@ export default function AdminAnalytics() {
                       </Pie>
                       <Tooltip 
                         contentStyle={{ background: '#0f172a', border: 'none', borderRadius: '12px', color: '#fff', fontSize: '12px' }}
+                        itemStyle={{ color: '#fff' }}
+                        labelStyle={{ color: '#fff' }}
                       />
                       <Legend 
                         verticalAlign="bottom" 
