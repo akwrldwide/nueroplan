@@ -65,8 +65,13 @@ Deno.serve(async (req) => {
       });
     }
 
+    // Extract pathname and query string
+    const urlParts = path.split('?');
+    const pathname = urlParts[0];
+    const queryString = urlParts[1] || '';
+
     // Extract path details (e.g. "/sessions/123" -> ["sessions", "123"])
-    const segments = path.replace(/^\/+|\/+$/g, '').split('/');
+    const segments = pathname.replace(/^\/+|\/+$/g, '').split('/');
     const resource = segments[0];
     const id = segments[1];
 
@@ -299,7 +304,7 @@ Deno.serve(async (req) => {
       if (method === 'GET') {
         if (!id) {
           // List students
-          const queryParams = new URL(req.url).searchParams;
+          const queryParams = new URLSearchParams(queryString);
           const search = queryParams.get('search') || '';
           const program = queryParams.get('program') || '';
           const level = queryParams.get('level') || '';
