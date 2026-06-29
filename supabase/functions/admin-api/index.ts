@@ -1,10 +1,69 @@
 import { createClient } from "https://esm.sh/@supabase/supabase-js@2.42.0";
+import { SmtpClient } from "https://deno.land/x/smtp@v0.7.0/mod.ts";
 
 const corsHeaders = {
   'Access-Control-Allow-Origin': '*',
   'Access-Control-Allow-Headers': 'authorization, x-client-info, apikey, content-type',
   'Access-Control-Allow-Methods': 'GET, POST, PUT, DELETE, OPTIONS'
 };
+
+async function sendMailToSingleRecipient(email: string, subject: string, htmlContent: string) {
+  const smtpUser = Deno.env.get('SMTP_USER');
+  const smtpPass = Deno.env.get('SMTP_PASS');
+  const smtpHost = Deno.env.get('SMTP_HOST') || 'smtp.gmail.com';
+  const smtpPort = parseInt(Deno.env.get('SMTP_PORT') || '465');
+  const resendApiKey = Deno.env.get('RESEND_API_KEY');
+
+  if (smtpUser && smtpPass) {
+    const client = new SmtpClient();
+    try {
+      if (smtpPort === 465) {
+        await client.connectTLS({
+          hostname: smtpHost,
+          port: smtpPort,
+          username: smtpUser,
+          password: smtpPass,
+        });
+      } else {
+        await client.connect({
+          hostname: smtpHost,
+          port: smtpPort,
+          username: smtpUser,
+          password: smtpPass,
+        });
+      }
+      await client.send({
+        from: smtpUser,
+        to: [email],
+        subject,
+        html: htmlContent,
+      });
+    } finally {
+      try {
+        await client.close();
+      } catch (_) {}
+    }
+  } else {
+    const apiKey = resendApiKey || 're_EgrZopCy_5cquThgAkaQebtwYsrbku74a';
+    const mailRes = await fetch('https://api.resend.com/emails', {
+      method: 'POST',
+      headers: {
+        'Authorization': `Bearer ${apiKey}`,
+        'Content-Type': 'application/json'
+      },
+      body: JSON.stringify({
+        from: 'NeuroPlan <onboarding@resend.dev>',
+        to: [email],
+        subject,
+        html: htmlContent
+      })
+    });
+    if (!mailRes.ok) {
+      const errText = await mailRes.text();
+      throw new Error(`Resend API error: ${errText}`);
+    }
+  }
+}
 
 Deno.serve(async (req) => {
   // Handle CORS
@@ -203,26 +262,8 @@ Deno.serve(async (req) => {
 
             for (const email of emailList) {
               try {
-                const mailRes = await fetch('https://api.resend.com/emails', {
-                  method: 'POST',
-                  headers: {
-                    'Authorization': `Bearer ${apiKey}`,
-                    'Content-Type': 'application/json'
-                  },
-                  body: JSON.stringify({
-                    from: 'NeuroPlan <onboarding@resend.dev>',
-                    to: [email],
-                    subject,
-                    html: htmlContent
-                  })
-                });
-                if (mailRes.ok) {
-                  sentCount++;
-                } else {
-                  const errTxt = await mailRes.text();
-                  console.error(`Resend error for ${email}:`, errTxt);
-                  errors.push(email);
-                }
+                await sendMailToSingleRecipient(email, subject, htmlContent);
+                sentCount++;
               } catch (e: any) {
                 console.error(`Failed to send email to ${email}:`, e);
                 errors.push(email);
@@ -477,25 +518,9 @@ Deno.serve(async (req) => {
             `;
 
             try {
-              const mailRes = await fetch('https://api.resend.com/emails', {
-                method: 'POST',
-                headers: {
-                  'Authorization': `Bearer ${apiKey}`,
-                  'Content-Type': 'application/json'
-                },
-                body: JSON.stringify({
-                  from: 'NeuroPlan <onboarding@resend.dev>',
-                  to: [student.email],
-                  subject,
-                  html: htmlContent
-                })
-              });
-              if (!mailRes.ok) {
-                const errTxt = await mailRes.text();
-                console.error(`Resend reset password email failed:`, errTxt);
-              }
+              await sendMailToSingleRecipient(student.email, subject, htmlContent);
             } catch (emailErr) {
-              console.error('Failed to send Resend reset password email:', emailErr);
+              console.error('Failed to send reset password email:', emailErr);
             }
 
             resultData = { 
