@@ -304,7 +304,7 @@ Deno.serve(async (req) => {
           const program = queryParams.get('program') || '';
           const level = queryParams.get('level') || '';
 
-          let query = supabaseAdmin.from('User').select('*, AcademicProfile(*)').eq('role', 'STUDENT');
+          let query = supabaseAdmin.from('User').select('*, AcademicProfile(*)').eq('role', 'STUDENT').not('email', 'like', 'test_%');
 
           if (program) {
             query = query.eq('AcademicProfile.program', program);
