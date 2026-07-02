@@ -1,28 +1,32 @@
-export async function adminFetch(path: string, token: string | null, options: RequestInit = {}) {
-  const API_URL = import.meta.env.VITE_API_URL || 'http://localhost:5000';
-  const url = `${API_URL}/api/admin${path}`;
+import { supabase } from '../supabaseClient';
 
-  const headers: HeadersInit = {
-    'Content-Type': 'application/json',
-  };
-
-  if (token) {
-    headers['Authorization'] = `Bearer ${token}`;
+export async function adminFetch(path: string, _token: string | null, options: RequestInit = {}) {
+  let requestData = undefined;
+  if (options.body) {
+    try {
+      requestData = JSON.parse(options.body as string);
+    } catch (_) {
+      requestData = options.body;
+    }
   }
 
-  const response = await fetch(url, {
-    ...options,
-    headers: {
-      ...headers,
-      ...options.headers,
-    },
+  const method = options.method || 'GET';
+
+  const { data, error } = await supabase.functions.invoke('admin-api', {
+    body: {
+      path,
+      method,
+      data: requestData
+    }
   });
 
-  if (!response.ok) {
-    const errorData = await response.json().catch(() => ({}));
-    const errorMsg = errorData.message || errorData.error || `Request failed with status ${response.status}`;
-    throw new Error(errorMsg);
+  if (error) {
+    throw new Error(error.message || 'Failed to communicate with admin service');
   }
 
-  return response.json();
+  if (data && data.error) {
+    throw new Error(data.error);
+  }
+
+  return data;
 }
