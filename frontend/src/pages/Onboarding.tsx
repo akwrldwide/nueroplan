@@ -399,6 +399,13 @@ export default function Onboarding() {
                         .eq('id', activeSession.id);
                 }
 
+                // Update user onboarding stage
+                const { error: userErr } = await supabase
+                    .from('User')
+                    .update({ onboarding_stage: 'COURSES' })
+                    .eq('id', user?.id);
+                if (userErr) throw userErr;
+
                 if (profileData.curriculum_type === 'BMAS') {
                     const { data: curriculum, error: currErr } = await supabase
                         .from('Course')

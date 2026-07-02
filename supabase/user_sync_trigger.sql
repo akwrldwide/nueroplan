@@ -148,7 +148,7 @@ BEGIN
   UPDATE public."AcademicProfile" SET semester = next_sem, level = next_lvl WHERE user_id = user_id_param;
 
   -- 5.5 Reset Onboarding Stage
-  UPDATE public."User" SET onboarding_stage = 'COURSES' WHERE id = user_id_param;
+  UPDATE public."User" SET onboarding_stage = 'PROFILE' WHERE id = user_id_param;
 
   -- 6. Archive models
   UPDATE public."UserCourse" SET is_archived = true WHERE user_id = user_id_param AND is_archived = false;

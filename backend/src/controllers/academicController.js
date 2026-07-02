@@ -172,7 +172,7 @@ const progressSemester = async (req, res) => {
             // 3.5 Reset Onboarding Stage
             await tx.user.update({
                 where: { id: user_id },
-                data: { onboarding_stage: 'COURSES' }
+                data: { onboarding_stage: 'PROFILE' }
             });
 
             // 4. Archive models instead of deleting
