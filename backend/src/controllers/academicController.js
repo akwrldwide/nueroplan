@@ -124,40 +124,8 @@ const progressSemester = async (req, res) => {
 
         // Perform all updates in a transaction
         await prisma.$transaction(async (tx) => {
-            // Find target semester window matching nextSemesterStr
-            let targetWindow = await tx.activeSemesterWindow.findFirst({
-                where: {
-                    name: nextSemesterStr,
-                    is_active: true
-                },
-                orderBy: {
-                    start_date: 'asc'
-                }
-            });
-
-            if (!targetWindow) {
-                const today = new Date();
-                const currentYear = today.getFullYear();
-                let start, end;
-
-                if (nextSemesterStr === "1st Semester") {
-                    const year = today.getMonth() >= 6 ? currentYear + 1 : currentYear;
-                    start = new Date(year, 0, 1);
-                    end = new Date(year, 5, 30, 23, 59, 59, 999);
-                } else {
-                    start = new Date(currentYear, 6, 1);
-                    end = new Date(currentYear, 11, 31, 23, 59, 59, 999);
-                }
-
-                targetWindow = await tx.activeSemesterWindow.create({
-                    data: {
-                        name: nextSemesterStr,
-                        start_date: start,
-                        end_date: end,
-                        is_active: true
-                    }
-                });
-            }
+            // Find target semester window matching current active registration window
+            let targetWindow = await getOrCreateActiveSemesterWindow(tx);
 
             // 1. Archive current session
             if (currentSession) {
@@ -185,10 +153,10 @@ const progressSemester = async (req, res) => {
                 where: { user_id },
                 create: {
                     user_id,
-                    semester: nextSemesterStr
+                    semester: targetWindow.name
                 },
                 update: {
-                    semester: nextSemesterStr
+                    semester: targetWindow.name
                 }
             });
 

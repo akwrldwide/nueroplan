@@ -328,17 +328,21 @@ export default function Onboarding() {
 
             let targetSemName = userSelectedSemStr;
             let targetSemStart = '';
+            let targetSemEnd = '';
 
             if (targetWindowFromDb) {
                 targetSemName = targetWindowFromDb.name;
                 targetSemStart = targetWindowFromDb.start_date;
+                targetSemEnd = targetWindowFromDb.end_date;
             } else {
                 // Fallback calculation
                 if (userSelectedSemStr === "1st Semester") {
                     const year = today.getMonth() >= 6 ? currentYear + 1 : currentYear;
                     targetSemStart = new Date(year, 0, 1).toISOString();
+                    targetSemEnd = new Date(year, 5, 30, 23, 59, 59, 999).toISOString();
                 } else {
                     targetSemStart = new Date(currentYear, 6, 1).toISOString();
+                    targetSemEnd = new Date(currentYear, 11, 31, 23, 59, 59, 999).toISOString();
                 }
             }
 
@@ -382,13 +386,15 @@ export default function Onboarding() {
                     .limit(1);
                 
                 const activeSession = activeSessionData?.[0] || null;
-                if (activeSession && !activeSession.end_date) {
+                const isSessionModifiable = activeSession && (!activeSession.end_date || new Date(activeSession.end_date) >= today);
+                if (isSessionModifiable) {
                     await supabase
                         .from('AcademicSession')
                         .update({
                             semester: targetSemName,
                             level: parseInt(profileData.level),
-                            start_date: targetSemStart
+                            start_date: targetSemStart,
+                            end_date: targetSemEnd
                         })
                         .eq('id', activeSession.id);
                 }
