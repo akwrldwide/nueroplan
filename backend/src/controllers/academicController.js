@@ -175,7 +175,8 @@ const progressSemester = async (req, res) => {
                     user_id,
                     semester: targetWindow.name,
                     level: nextLevel,
-                    start_date: targetWindow.start_date
+                    start_date: targetWindow.start_date,
+                    end_date: targetWindow.end_date
                 }
             });
 

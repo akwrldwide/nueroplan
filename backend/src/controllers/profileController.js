@@ -129,7 +129,7 @@ const createProfile = async (req, res) => {
                     semester: targetWindow.name,
                     level: parsedLevel,
                     start_date: targetWindow.start_date,
-                    end_date: null
+                    end_date: targetWindow.end_date
                 }
             });
 

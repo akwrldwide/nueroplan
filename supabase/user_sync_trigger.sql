@@ -106,10 +106,11 @@ BEGIN
       active_window_end,
       true,
       CURRENT_TIMESTAMP
-    ) RETURNING name, start_date INTO active_window_name, active_window_start;
+    ) RETURNING name, start_date, end_date INTO active_window_name, active_window_start, active_window_end;
   ELSE
     active_window_name := active_window_rec.name;
     active_window_start := active_window_rec.start_date;
+    active_window_end := active_window_rec.end_date;
   END IF;
 
   -- Find current open academic session
@@ -122,13 +123,14 @@ BEGIN
 
   -- 4. Create new session anchored to the target semester window
   new_session_id := gen_random_uuid()::text;
-  INSERT INTO public."AcademicSession" (id, user_id, semester, level, start_date, created_at)
+  INSERT INTO public."AcademicSession" (id, user_id, semester, level, start_date, end_date, created_at)
   VALUES (
     new_session_id,
     user_id_param,
     active_window_name,
     next_lvl,
     active_window_start,
+    active_window_end,
     CURRENT_TIMESTAMP
   );
 
