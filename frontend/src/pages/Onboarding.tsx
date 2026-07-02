@@ -91,19 +91,31 @@ export default function Onboarding() {
                     const formatted = data.map((win: any) => {
                         const start = new Date(win.start_date);
                         const end = new Date(win.end_date);
-                        const isActiveByDate = today >= start && today <= end;
+                        
+                        let mode: 'active' | 'upcoming' | 'past' = 'active';
+                        if (today > end) {
+                            mode = 'past';
+                        } else if (today < start) {
+                            mode = 'upcoming';
+                        }
                         
                         return {
                             ...win,
-                            value: win.name === '1st Semester' ? '1' : '2',
-                            isActiveByDate,
+                            value: win.name.toLowerCase().includes('1st') || win.name.includes('1') ? '1' : '2',
+                            mode,
                             dateString: `${start.toLocaleDateString(undefined, { month: 'short', day: 'numeric', year: 'numeric' })} - ${end.toLocaleDateString(undefined, { month: 'short', day: 'numeric', year: 'numeric' })}`
                         };
                     });
-                    setSemesterOptions(formatted);
 
-                    // Set default semester to the active one by date
-                    const activeWin = formatted.find(win => win.isActiveByDate);
+                    const hasUpcoming = formatted.some(win => win.mode === 'upcoming');
+                    const filtered = hasUpcoming 
+                        ? formatted.filter(win => win.mode !== 'past')
+                        : formatted;
+
+                    setSemesterOptions(filtered);
+
+                    // Set default semester to the active one by date (or if none, the first available non-past one)
+                    const activeWin = filtered.find(win => win.mode === 'active') || filtered.find(win => win.mode === 'upcoming');
                     if (activeWin) {
                         setProfileData(prev => ({ ...prev, semester: activeWin.value }));
                         setSelectedSystemSemester(activeWin.value);
@@ -842,42 +854,55 @@ export default function Onboarding() {
                                 <div className="sm:col-span-2">
                                     <label className="block text-sm font-medium text-gray-700 mb-2">Registration Window</label>
                                     <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
-                                        {semesterOptions.map((opt) => (
-                                            <div
-                                                key={opt.value}
-                                                onClick={() => setSelectedSystemSemester(opt.value)}
-                                                className={`cursor-pointer border rounded-xl p-3 px-4 flex justify-between items-center transition-all ${
-                                                    selectedSystemSemester === opt.value
-                                                        ? 'border-indigo-600 bg-indigo-50/30 ring-2 ring-indigo-500/10 font-semibold'
-                                                        : 'border-gray-200 hover:border-indigo-300 hover:bg-gray-50/30'
-                                                }`}
-                                            >
-                                                <div>
-                                                    <span className="font-semibold text-gray-900 text-sm">{opt.name}</span>
-                                                    <span className="block text-[11px] text-gray-500 mt-0.5">{opt.dateString}</span>
-                                                </div>
-                                                <div className="flex items-center gap-2">
-                                                    {opt.isActiveByDate ? (
-                                                        <span className="inline-flex items-center px-2 py-0.5 rounded-full text-[10px] font-medium bg-emerald-50 text-emerald-700 border border-emerald-200">
-                                                            Active Semester
-                                                        </span>
-                                                    ) : (
-                                                        <span className="inline-flex items-center px-2 py-0.5 rounded-full text-[10px] font-medium bg-indigo-50 text-indigo-700 border border-indigo-200">
-                                                            Upcoming Semester
-                                                        </span>
-                                                    )}
-                                                    <div className={`w-4 h-4 rounded-full border flex items-center justify-center ${
-                                                        selectedSystemSemester === opt.value
-                                                            ? 'border-indigo-600 bg-indigo-600 text-white'
-                                                            : 'border-gray-300 bg-white'
-                                                    }`}>
-                                                        {selectedSystemSemester === opt.value && (
-                                                            <div className="w-1.5 h-1.5 rounded-full bg-white" />
+                                        {semesterOptions.map((opt) => {
+                                            const isSelected = selectedSystemSemester === opt.value && opt.mode !== 'past';
+                                            const cardClass = opt.mode === 'past'
+                                                ? 'border-gray-200 bg-gray-50/50 opacity-60 cursor-not-allowed'
+                                                : isSelected
+                                                    ? 'border-indigo-600 bg-indigo-50/30 ring-2 ring-indigo-500/10 font-semibold cursor-pointer'
+                                                    : 'border-gray-200 hover:border-indigo-300 hover:bg-gray-50/30 cursor-pointer';
+
+                                            return (
+                                                <div
+                                                    key={opt.value}
+                                                    onClick={() => opt.mode !== 'past' && setSelectedSystemSemester(opt.value)}
+                                                    className={`border rounded-xl p-3 px-4 flex justify-between items-center transition-all ${cardClass}`}
+                                                >
+                                                    <div>
+                                                        <span className="font-semibold text-gray-900 text-sm">{opt.name}</span>
+                                                        <span className="block text-[11px] text-gray-500 mt-0.5">{opt.dateString}</span>
+                                                    </div>
+                                                    <div className="flex items-center gap-2">
+                                                        {opt.mode === 'active' && (
+                                                            <span className="inline-flex items-center px-2 py-0.5 rounded-full text-[10px] font-medium bg-emerald-50 text-emerald-700 border border-emerald-200">
+                                                                Active Semester
+                                                            </span>
+                                                        )}
+                                                        {opt.mode === 'upcoming' && (
+                                                            <span className="inline-flex items-center px-2 py-0.5 rounded-full text-[10px] font-medium bg-indigo-50 text-indigo-700 border border-indigo-200">
+                                                                Upcoming Semester
+                                                            </span>
+                                                        )}
+                                                        {opt.mode === 'past' && (
+                                                            <span className="inline-flex items-center px-2 py-0.5 rounded-full text-[10px] font-medium bg-gray-100 text-gray-600 border border-gray-200">
+                                                                Past Semester
+                                                            </span>
+                                                        )}
+                                                        {opt.mode !== 'past' && (
+                                                            <div className={`w-4 h-4 rounded-full border flex items-center justify-center ${
+                                                                isSelected
+                                                                    ? 'border-indigo-600 bg-indigo-600 text-white'
+                                                                    : 'border-gray-300 bg-white'
+                                                            }`}>
+                                                                {isSelected && (
+                                                                    <div className="w-1.5 h-1.5 rounded-full bg-white" />
+                                                                )}
+                                                            </div>
                                                         )}
                                                     </div>
                                                 </div>
-                                            </div>
-                                        ))}
+                                            );
+                                        })}
                                     </div>
                                     <p className="mt-2 text-xs text-gray-500">
                                         Specify which academic registration window you want your profile and study plan to be generated in.
