@@ -492,40 +492,7 @@ const getCoreAnalytics = async (req, res) => {
         const studentCount = await prisma.user.count({ where: { role: 'STUDENT' } });
         const averageStudyHours = studentCount > 0 ? (totalStudyHours / studentCount) : 0;
 
-        // 4. Risk Distribution
-        const students = await prisma.user.findMany({
-            where: { role: 'STUDENT' },
-            include: {
-                quizResults: true,
-                progressLogs: true
-            }
-        });
-
-        let lowRisk = 0;
-        let medRisk = 0;
-        let highRisk = 0;
-
-        students.forEach(student => {
-            const quizScores = student.quizResults.map(r => r.score_percentage);
-            const quizAverage = quizScores.length > 0 ? (quizScores.reduce((a, b) => a + b, 0) / quizScores.length) / 100 : null;
-            
-            const consistencyScores = student.progressLogs.map(l => l.consistency_score);
-            const consistencyScore = consistencyScores.length > 0 ? (consistencyScores.reduce((a, b) => a + b, 0) / consistencyScores.length) : null;
-            
-            const qA = quizAverage !== null ? quizAverage : 0.5;
-            const cS = consistencyScore !== null ? consistencyScore : 0.8;
-            const risk = ((1 - qA) * 0.6) + ((1 - cS) * 0.4);
-
-            if (risk < 0.35) {
-                lowRisk++;
-            } else if (risk > 0.65) {
-                highRisk++;
-            } else {
-                medRisk++;
-            }
-        });
-
-        // 5. Average Study Plan Completion by Programme
+        // 4. Average Exam Readiness by Program
         const studentsList = await prisma.user.findMany({
             where: {
                 role: 'STUDENT',
@@ -535,6 +502,17 @@ const getCoreAnalytics = async (req, res) => {
             },
             include: {
                 academicProfile: true,
+                userCourses: {
+                    where: { is_archived: false },
+                    include: {
+                        course: {
+                            include: {
+                                courseTopics: true
+                            }
+                        }
+                    }
+                },
+                quizResults: true,
                 studyPlans: {
                     include: {
                         sessions: true
@@ -544,6 +522,8 @@ const getCoreAnalytics = async (req, res) => {
         });
 
         const programCompletionMap = {};
+        const programQuizMap = {};
+        const programReadinessMap = {};
 
         studentsList.forEach(student => {
             const progName = student.academicProfile?.program || 'Unenrolled';
@@ -559,6 +539,81 @@ const getCoreAnalytics = async (req, res) => {
                     }
                 });
             }
+
+            const quizResults = student.quizResults || [];
+            if (quizResults.length > 0) {
+                if (!programQuizMap[progName]) {
+                    programQuizMap[progName] = { sum: 0, count: 0 };
+                }
+                quizResults.forEach(q => {
+                    programQuizMap[progName].sum += q.score_percentage;
+                    programQuizMap[progName].count += 1;
+                });
+            }
+
+            const userCourses = student.userCourses || [];
+            if (userCourses.length > 0) {
+                let studentTotalReadiness = 0;
+                let studentCourseCount = 0;
+
+                userCourses.forEach(uc => {
+                    const course = uc.course;
+                    if (!course) return;
+
+                    const courseTopics = course.courseTopics || [];
+                    const totalTopicsCount = courseTopics.length;
+                    const courseQuizzes = quizResults.filter(q => q.course_id === uc.course_id);
+
+                    // Step 1: Topic Coverage
+                    const courseTopicNames = courseTopics.map(t => t.topic_name.trim().toLowerCase());
+                    const attemptedTopicsSet = new Set(
+                        courseQuizzes
+                            .filter(q => q.topic_name && q.topic_name.toLowerCase() !== 'whole course')
+                            .map(q => q.topic_name.trim().toLowerCase())
+                    );
+                    const attemptedCount = courseTopicNames.filter(name => attemptedTopicsSet.has(name)).length;
+                    const coverage = totalTopicsCount > 0 ? (attemptedCount / totalTopicsCount) * 100 : 0;
+
+                    // Step 2: Quiz Performance
+                    let quizPerformance = 0;
+                    const wholeCourseQuizzes = courseQuizzes.filter(q => !q.topic_name || q.topic_name.toLowerCase() === 'whole course');
+
+                    if (wholeCourseQuizzes.length > 0) {
+                        const totalScore = wholeCourseQuizzes.reduce((sum, q) => sum + q.score_percentage, 0);
+                        quizPerformance = totalScore / wholeCourseQuizzes.length;
+                    } else {
+                        const topicQuizzes = courseQuizzes.filter(q => q.topic_name && q.topic_name.toLowerCase() !== 'whole course');
+                        if (topicQuizzes.length > 0) {
+                            const topicScores = {};
+                            topicQuizzes.forEach(q => {
+                                const key = q.topic_name.trim().toLowerCase();
+                                if (!topicScores[key]) topicScores[key] = [];
+                                topicScores[key].push(q.score_percentage);
+                            });
+                            const topicAverages = Object.values(topicScores).map(scores => {
+                                const sum = scores.reduce((s, val) => s + val, 0);
+                                return sum / scores.length;
+                            });
+                            const sumOfAverages = topicAverages.reduce((s, avg) => s + avg, 0);
+                            quizPerformance = sumOfAverages / topicAverages.length;
+                        }
+                    }
+
+                    // Step 3: Final Readiness
+                    const readiness = (0.4 * coverage) + (0.6 * quizPerformance);
+                    studentTotalReadiness += readiness;
+                    studentCourseCount += 1;
+                });
+
+                if (studentCourseCount > 0) {
+                    const studentAverageReadiness = studentTotalReadiness / studentCourseCount;
+                    if (!programReadinessMap[progName]) {
+                        programReadinessMap[progName] = { sumReadiness: 0, count: 0 };
+                    }
+                    programReadinessMap[progName].sumReadiness += studentAverageReadiness;
+                    programReadinessMap[progName].count += 1;
+                }
+            }
         });
 
         const studyPlanCompletion = Object.keys(programCompletionMap).map(prog => {
@@ -570,16 +625,31 @@ const getCoreAnalytics = async (req, res) => {
             };
         });
 
+        const quizScoreByProgram = Object.keys(programQuizMap).map(prog => {
+            const data = programQuizMap[prog];
+            const average = data.count > 0 ? data.sum / data.count : 0;
+            return {
+                program: prog,
+                averageScore: Math.round(average * 10) / 10
+            };
+        });
+
+        const examReadinessByProgram = Object.keys(programReadinessMap).map(prog => {
+            const data = programReadinessMap[prog];
+            const average = data.count > 0 ? data.sumReadiness / data.count : 0;
+            return {
+                program: prog,
+                readinessRate: Math.round(average * 10) / 10
+            };
+        });
+
         res.json({
             averageQuizScore,
             averageMastery,
             averageStudyHours,
-            riskDistribution: {
-                lowRisk,
-                mediumRisk: medRisk,
-                highRisk
-            },
-            studyPlanCompletion
+            examReadinessByProgram,
+            studyPlanCompletion,
+            quizScoreByProgram
         });
     } catch (error) {
         console.error(error);

@@ -615,43 +615,15 @@ Deno.serve(async (req) => {
         .eq('role', 'STUDENT');
       const averageStudyHours = studentCount && studentCount > 0 ? (totalStudyHours / studentCount) : 0;
 
-      const { data: students } = await supabaseAdmin
-        .from('User')
-        .select('*, QuizResult(score_percentage), ProgressLog(consistency_score)')
-        .eq('role', 'STUDENT');
-
-      let lowRisk = 0;
-      let medRisk = 0;
-      let highRisk = 0;
-
-      (students || []).forEach((student: any) => {
-        const quizScores = (student.QuizResult || []).map((r: any) => r.score_percentage);
-        const quizAverage = quizScores.length > 0 ? (quizScores.reduce((a: any, b: any) => a + b, 0) / quizScores.length) / 100 : null;
-
-        const consistencyScores = (student.ProgressLog || []).map((l: any) => l.consistency_score);
-        const consistencyScore = consistencyScores.length > 0 ? (consistencyScores.reduce((a: any, b: any) => a + b, 0) / consistencyScores.length) : null;
-
-        const qA = quizAverage !== null ? quizAverage : 0.5;
-        const cS = consistencyScore !== null ? consistencyScore : 0.8;
-        const risk = ((1 - qA) * 0.6) + ((1 - cS) * 0.4);
-
-        if (risk < 0.35) {
-          lowRisk++;
-        } else if (risk > 0.65) {
-          highRisk++;
-        } else {
-          medRisk++;
-        }
-      });
-
       const { data: studentsList } = await supabaseAdmin
         .from('User')
-        .select('*, AcademicProfile(program), StudyPlan(StudySession(*)), QuizResult(score_percentage)')
+        .select('*, AcademicProfile(program), StudyPlan(StudySession(*)), QuizResult(course_id, topic_name, score_percentage), UserCourse(course_id, Course(CourseTopic(topic_name)))')
         .eq('role', 'STUDENT')
         .not('email', 'like', 'test_%');
 
       const programCompletionMap: Record<string, { totalSessions: number, completedSessions: number }> = {};
       const programQuizMap: Record<string, { sum: number, count: number }> = {};
+      const programReadinessMap: Record<string, { sumReadiness: number, count: number }> = {};
 
       (studentsList || []).forEach((student: any) => {
         const profile = student.AcademicProfile?.[0] || student.AcademicProfile || null;
@@ -677,6 +649,71 @@ Deno.serve(async (req) => {
             programQuizMap[progName].count += 1;
           });
         }
+
+        // Calculate Exam Readiness per user course, then aggregate by program
+        const userCourses = student.UserCourse || [];
+        if (userCourses.length > 0) {
+          let studentTotalReadiness = 0;
+          let studentCourseCount = 0;
+
+          userCourses.forEach((uc: any) => {
+            const course = uc.Course?.[0] || uc.Course || null;
+            if (!course) return;
+
+            const courseTopics = course.CourseTopic || [];
+            const totalTopicsCount = courseTopics.length;
+            const courseQuizzes = quizResults.filter((q: any) => q.course_id === uc.course_id);
+
+            // Step 1: Topic Coverage
+            const courseTopicNames = courseTopics.map((t: any) => t.topic_name.trim().toLowerCase());
+            const attemptedTopicsSet = new Set(
+              courseQuizzes
+                .filter((q: any) => q.topic_name && q.topic_name.toLowerCase() !== 'whole course')
+                .map((q: any) => q.topic_name.trim().toLowerCase())
+            );
+            const attemptedCount = courseTopicNames.filter((name: string) => attemptedTopicsSet.has(name)).length;
+            const coverage = totalTopicsCount > 0 ? (attemptedCount / totalTopicsCount) * 100 : 0;
+
+            // Step 2: Quiz Performance
+            let quizPerformance = 0;
+            const wholeCourseQuizzes = courseQuizzes.filter((q: any) => !q.topic_name || q.topic_name.toLowerCase() === 'whole course');
+
+            if (wholeCourseQuizzes.length > 0) {
+              const totalScore = wholeCourseQuizzes.reduce((sum: number, q: any) => sum + q.score_percentage, 0);
+              quizPerformance = totalScore / wholeCourseQuizzes.length;
+            } else {
+              const topicQuizzes = courseQuizzes.filter((q: any) => q.topic_name && q.topic_name.toLowerCase() !== 'whole course');
+              if (topicQuizzes.length > 0) {
+                const topicScores: Record<string, number[]> = {};
+                topicQuizzes.forEach((q: any) => {
+                  const key = q.topic_name.trim().toLowerCase();
+                  if (!topicScores[key]) topicScores[key] = [];
+                  topicScores[key].push(q.score_percentage);
+                });
+                const topicAverages = Object.values(topicScores).map((scores: number[]) => {
+                  const sum = scores.reduce((s: number, val: number) => s + val, 0);
+                  return sum / scores.length;
+                });
+                const sumOfAverages = topicAverages.reduce((s: number, avg: number) => s + avg, 0);
+                quizPerformance = sumOfAverages / topicAverages.length;
+              }
+            }
+
+            // Step 3: Final Readiness
+            const readiness = (0.4 * coverage) + (0.6 * quizPerformance);
+            studentTotalReadiness += readiness;
+            studentCourseCount += 1;
+          });
+
+          if (studentCourseCount > 0) {
+            const studentAverageReadiness = studentTotalReadiness / studentCourseCount;
+            if (!programReadinessMap[progName]) {
+              programReadinessMap[progName] = { sumReadiness: 0, count: 0 };
+            }
+            programReadinessMap[progName].sumReadiness += studentAverageReadiness;
+            programReadinessMap[progName].count += 1;
+          }
+        }
       });
 
       const studyPlanCompletion = Object.keys(programCompletionMap).map(prog => {
@@ -697,15 +734,20 @@ Deno.serve(async (req) => {
         };
       });
 
+      const examReadinessByProgram = Object.keys(programReadinessMap).map(prog => {
+        const dataMap = programReadinessMap[prog];
+        const average = dataMap.count > 0 ? dataMap.sumReadiness / dataMap.count : 0;
+        return {
+          program: prog,
+          readinessRate: Math.round(average * 10) / 10
+        };
+      });
+
       resultData = {
         averageQuizScore,
         averageMastery,
         averageStudyHours,
-        riskDistribution: {
-          lowRisk,
-          mediumRisk: medRisk,
-          highRisk
-        },
+        examReadinessByProgram,
         studyPlanCompletion,
         quizScoreByProgram
       };
