@@ -6,7 +6,6 @@ import {
   Award, 
   Target, 
   Clock, 
-  ShieldAlert, 
   Loader2,
   BarChart3,
   BookOpen
