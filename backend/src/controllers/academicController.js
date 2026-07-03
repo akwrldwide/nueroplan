@@ -14,15 +14,79 @@ const getOrCreateActiveSemesterWindow = async (tx = prisma) => {
     });
 
     if (!activeWindow) {
+        // Find active GlobalAcademicSession
+        const activeSession = await tx.globalAcademicSession.findFirst({
+            where: { status: 'ACTIVE' }
+        });
+
+        // Find all SemesterWindow rules
+        const semesterWindows = await tx.semesterWindow.findMany();
+
+        let matchedRule = null;
+        if (semesterWindows.length > 0) {
+            const todayMonth = today.getMonth() + 1;
+            const todayDay = today.getDate();
+            const todayVal = todayMonth * 100 + todayDay;
+
+            for (const w of semesterWindows) {
+                const startVal = w.start_month * 100 + w.start_day;
+                const endVal = w.end_month * 100 + w.end_day;
+
+                if (startVal <= endVal) {
+                    if (todayVal >= startVal && todayVal <= endVal) {
+                        matchedRule = w;
+                        break;
+                    }
+                } else {
+                    if (todayVal >= startVal || todayVal <= endVal) {
+                        matchedRule = w;
+                        break;
+                    }
+                }
+            }
+        }
+
         let name, start, end;
-        if (today.getMonth() < 6) { // Jan - Jun
-            name = "1st Semester";
-            start = new Date(currentYear, 0, 1);
-            end = new Date(currentYear, 5, 30, 23, 59, 59, 999);
-        } else { // Jul - Dec
-            name = "2nd Semester";
-            start = new Date(currentYear, 6, 1);
-            end = new Date(currentYear, 11, 31, 23, 59, 59, 999);
+        if (matchedRule) {
+            // Normalize name to what the app expects ("1st Semester" or "2nd Semester")
+            const ruleName = matchedRule.semester.trim().toLowerCase();
+            if (ruleName === 'first semester' || ruleName === '1st semester') {
+                name = '1st Semester';
+            } else if (ruleName === 'second semester' || ruleName === '2nd semester') {
+                name = '2nd Semester';
+            } else {
+                name = matchedRule.semester;
+            }
+
+            // Determine years based on whether the rule spans across year boundary
+            const startVal = matchedRule.start_month * 100 + matchedRule.start_day;
+            const endVal = matchedRule.end_month * 100 + matchedRule.end_day;
+
+            let startYear = currentYear;
+            let endYear = currentYear;
+
+            if (startVal > endVal) {
+                const todayMonth = today.getMonth() + 1;
+                if (todayMonth >= matchedRule.start_month) {
+                    endYear = currentYear + 1;
+                } else if (todayMonth <= matchedRule.end_month) {
+                    startYear = currentYear - 1;
+                }
+            }
+
+            start = new Date(startYear, matchedRule.start_month - 1, matchedRule.start_day);
+            end = new Date(endYear, matchedRule.end_month - 1, matchedRule.end_day, 23, 59, 59, 999);
+        } else {
+            // Safe fallback if no rules are configured
+            if (today.getMonth() < 6) { // Jan - Jun
+                name = "1st Semester";
+                start = new Date(currentYear, 0, 1);
+                end = new Date(currentYear, 5, 30, 23, 59, 59, 999);
+            } else { // Jul - Dec
+                name = "2nd Semester";
+                start = new Date(currentYear, 6, 1);
+                end = new Date(currentYear, 11, 31, 23, 59, 59, 999);
+            }
         }
 
         activeWindow = await tx.activeSemesterWindow.create({

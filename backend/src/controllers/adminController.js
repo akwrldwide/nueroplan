@@ -107,6 +107,7 @@ const createSession = async (req, res) => {
                 status: status || 'UPCOMING'
             }
         });
+        await prisma.activeSemesterWindow.deleteMany();
         res.status(201).json(session);
     } catch (error) {
         console.error(error);
@@ -141,6 +142,7 @@ const updateSession = async (req, res) => {
                 status
             }
         });
+        await prisma.activeSemesterWindow.deleteMany();
         res.json(session);
     } catch (error) {
         console.error(error);
@@ -152,6 +154,7 @@ const deleteSession = async (req, res) => {
     try {
         const { id } = req.params;
         await prisma.globalAcademicSession.delete({ where: { id } });
+        await prisma.activeSemesterWindow.deleteMany();
         res.json({ message: 'Session deleted successfully' });
     } catch (error) {
         console.error(error);
@@ -174,6 +177,7 @@ const createWindow = async (req, res) => {
                 reg_lead_time: parseInt(reg_lead_time)
             }
         });
+        await prisma.activeSemesterWindow.deleteMany();
         res.status(201).json(window);
     } catch (error) {
         console.error(error);
@@ -196,6 +200,7 @@ const updateWindow = async (req, res) => {
                 reg_lead_time: reg_lead_time !== undefined ? parseInt(reg_lead_time) : undefined
             }
         });
+        await prisma.activeSemesterWindow.deleteMany();
         res.json(window);
     } catch (error) {
         console.error(error);
@@ -207,6 +212,7 @@ const deleteWindow = async (req, res) => {
     try {
         const { id } = req.params;
         await prisma.semesterWindow.delete({ where: { id } });
+        await prisma.activeSemesterWindow.deleteMany();
         res.json({ message: 'Semester window deleted' });
     } catch (error) {
         console.error(error);

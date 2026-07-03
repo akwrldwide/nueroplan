@@ -313,6 +313,7 @@ Deno.serve(async (req) => {
         resultData = { message: 'Session deleted successfully' };
       }
 
+      await supabaseAdmin.from('ActiveSemesterWindow').delete().neq('id', '_');
     } else if (resource === 'windows') {
       if (method === 'POST') {
         const { semester, start_month, start_day, end_month, end_day, allow_early_reg, reg_lead_time } = data;
@@ -346,6 +347,7 @@ Deno.serve(async (req) => {
         resultData = { message: 'Window deleted successfully' };
       }
 
+      await supabaseAdmin.from('ActiveSemesterWindow').delete().neq('id', '_');
     } else if (resource === 'programmes') {
       if (method === 'POST') {
         const { name } = data;
