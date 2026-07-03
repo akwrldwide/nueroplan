@@ -27,6 +27,7 @@ export default function CourseList() {
     const navigate = useNavigate();
     const [courses, setCourses] = useState<any[]>([]);
     const [loading, setLoading] = useState(true);
+    const [quizResults, setQuizResults] = useState<any[]>([]);
     
     // Filtering & Sorting & Pagination
     const [searchQuery, setSearchQuery] = useState('');
@@ -51,6 +52,57 @@ export default function CourseList() {
         }
     }, [user]);
 
+    const calculateReadiness = (item: any) => {
+        const courseId = item.course_id;
+        const courseTopics = item.course?.courseTopics || [];
+        const totalTopicsCount = courseTopics.length;
+        
+        const courseQuizzes = quizResults.filter(q => q.course_id === courseId);
+        
+        // Step 1: Topic Coverage
+        const courseTopicNames = courseTopics.map((t: any) => t.topic_name.trim().toLowerCase());
+        const attemptedTopicsSet = new Set(
+            courseQuizzes
+                .filter(q => q.topic_name && q.topic_name.toLowerCase() !== 'whole course')
+                .map(q => q.topic_name.trim().toLowerCase())
+        );
+        const attemptedCount = courseTopicNames.filter((name: string) => attemptedTopicsSet.has(name)).length;
+        const coverage = totalTopicsCount > 0 ? (attemptedCount / totalTopicsCount) * 100 : 0;
+        
+        // Step 2: Quiz Performance
+        let quizPerformance = 0;
+        const wholeCourseQuizzes = courseQuizzes.filter(q => !q.topic_name || q.topic_name.toLowerCase() === 'whole course');
+        
+        if (wholeCourseQuizzes.length > 0) {
+            const totalScore = wholeCourseQuizzes.reduce((sum, q) => sum + q.score_percentage, 0);
+            quizPerformance = totalScore / wholeCourseQuizzes.length;
+        } else {
+            const topicQuizzes = courseQuizzes.filter(q => q.topic_name && q.topic_name.toLowerCase() !== 'whole course');
+            if (topicQuizzes.length > 0) {
+                const topicScores: Record<string, number[]> = {};
+                topicQuizzes.forEach(q => {
+                    const key = q.topic_name.trim().toLowerCase();
+                    if (!topicScores[key]) topicScores[key] = [];
+                    topicScores[key].push(q.score_percentage);
+                });
+                const topicAverages = Object.values(topicScores).map(scores => {
+                    const sum = scores.reduce((s, val) => s + val, 0);
+                    return sum / scores.length;
+                });
+                const sumOfAverages = topicAverages.reduce((s, avg) => s + avg, 0);
+                quizPerformance = sumOfAverages / topicAverages.length;
+            }
+        }
+        
+        // Step 3: Final Readiness
+        const readiness = 0.4 * coverage + 0.6 * quizPerformance;
+        return {
+            readiness,
+            coverage,
+            quizPerformance
+        };
+    };
+
     const fetchCourses = async () => {
         if (!user) return;
         if (courses.length === 0) {
@@ -64,6 +116,13 @@ export default function CourseList() {
                 .eq('is_archived', false);
             if (error) throw error;
             setCourses(data || []);
+
+            const { data: resultsData, error: resultsErr } = await supabase
+                .from('QuizResult')
+                .select('*')
+                .eq('user_id', user.id);
+            if (resultsErr) throw resultsErr;
+            setQuizResults(resultsData || []);
         } catch (error) {
             console.error(error);
         } finally {
@@ -105,6 +164,10 @@ export default function CourseList() {
                     valA = a.course?.units || 0; valB = b.course?.units || 0; break;
                 case 'difficulty':
                     valA = a.course?.difficulty || 0; valB = b.course?.difficulty || 0; break;
+                case 'readiness':
+                    valA = calculateReadiness(a).readiness;
+                    valB = calculateReadiness(b).readiness;
+                    break;
                 default: 
                     return 0;
             }
@@ -418,19 +481,23 @@ export default function CourseList() {
                         <table className="w-full text-left border-collapse hidden sm:table">
                             <thead className="bg-slate-50/75 border-b border-slate-100">
                                 <tr>
-                                    <th className="px-6 py-4 text-xs font-bold text-slate-400 uppercase tracking-wider cursor-pointer hover:bg-slate-100 transition-colors w-[15%]"
+                                    <th className="px-6 py-4 text-xs font-bold text-slate-400 uppercase tracking-wider cursor-pointer hover:bg-slate-100 transition-colors w-[12%]"
                                         onClick={() => handleSort('code')}>
                                         <div className="flex items-center gap-1.5">Course Code <ArrowUpDown size={12} className="text-slate-400" /></div>
                                     </th>
-                                    <th className="px-6 py-4 text-xs font-bold text-slate-400 uppercase tracking-wider cursor-pointer hover:bg-slate-100 transition-colors w-[40%]"
+                                    <th className="px-6 py-4 text-xs font-bold text-slate-400 uppercase tracking-wider cursor-pointer hover:bg-slate-100 transition-colors w-[28%]"
                                         onClick={() => handleSort('title')}>
                                         <div className="flex items-center gap-1.5">Title <ArrowUpDown size={12} className="text-slate-400" /></div>
                                     </th>
-                                    <th className="px-6 py-4 text-xs font-bold text-slate-400 uppercase tracking-wider cursor-pointer hover:bg-slate-100 transition-colors w-[15%]"
+                                    <th className="px-6 py-4 text-xs font-bold text-slate-400 uppercase tracking-wider cursor-pointer hover:bg-slate-100 transition-colors w-[20%]"
+                                        onClick={() => handleSort('readiness')}>
+                                        <div className="flex items-center gap-1.5">Exam Readiness <ArrowUpDown size={12} className="text-slate-400" /></div>
+                                    </th>
+                                    <th className="px-6 py-4 text-xs font-bold text-slate-400 uppercase tracking-wider cursor-pointer hover:bg-slate-100 transition-colors w-[12%]"
                                         onClick={() => handleSort('units')}>
                                         <div className="flex items-center gap-1.5">Units <ArrowUpDown size={12} className="text-slate-400" /></div>
                                     </th>
-                                    <th className="px-6 py-4 text-xs font-bold text-slate-400 uppercase tracking-wider cursor-pointer hover:bg-slate-100 transition-colors w-[15%]"
+                                    <th className="px-6 py-4 text-xs font-bold text-slate-400 uppercase tracking-wider cursor-pointer hover:bg-slate-100 transition-colors w-[13%]"
                                         onClick={() => handleSort('difficulty')}>
                                         <div className="flex items-center gap-1.5">Risk Factor <ArrowUpDown size={12} className="text-slate-400" /></div>
                                     </th>
@@ -473,6 +540,53 @@ export default function CourseList() {
                                                 <p className="text-sm font-bold text-slate-900 group-hover:text-indigo-600 transition-colors">{item.course?.title}</p>
                                             </td>
                                             <td className="px-6 py-5 whitespace-nowrap">
+                                                {(() => {
+                                                    const { readiness, coverage, quizPerformance } = calculateReadiness(item);
+                                                    
+                                                    // Determine color based on readiness percentage
+                                                    let badgeColorClass = "text-indigo-600 bg-indigo-50 border-indigo-100";
+                                                    let progressColorClass = "bg-indigo-500";
+                                                    let progressTrackClass = "bg-indigo-50";
+
+                                                    if (readiness >= 70) {
+                                                        badgeColorClass = "text-emerald-700 bg-emerald-50 border-emerald-100";
+                                                        progressColorClass = "bg-emerald-500";
+                                                        progressTrackClass = "bg-emerald-50";
+                                                    } else if (readiness >= 40) {
+                                                        badgeColorClass = "text-amber-700 bg-amber-50 border-amber-100";
+                                                        progressColorClass = "bg-amber-500";
+                                                        progressTrackClass = "bg-amber-50";
+                                                    } else if (readiness > 0) {
+                                                        badgeColorClass = "text-rose-700 bg-rose-50 border-rose-100";
+                                                        progressColorClass = "bg-rose-500";
+                                                        progressTrackClass = "bg-rose-50";
+                                                    } else {
+                                                        badgeColorClass = "text-slate-400 bg-slate-50 border-slate-100";
+                                                        progressColorClass = "bg-slate-200";
+                                                        progressTrackClass = "bg-slate-100";
+                                                    }
+
+                                                    return (
+                                                        <div className="flex flex-col gap-1 w-36">
+                                                            <div className="flex items-center gap-1.5">
+                                                                <span className={`text-xs font-bold px-2 py-0.5 rounded-full border ${badgeColorClass}`}>
+                                                                    {readiness.toFixed(1)}%
+                                                                </span>
+                                                                <span className="text-[10px] text-slate-400 font-semibold uppercase tracking-wider">
+                                                                    Readiness
+                                                                </span>
+                                                            </div>
+                                                            <div className={`w-full h-1.5 rounded-full ${progressTrackClass} overflow-hidden mt-0.5`}>
+                                                                <div className={`h-full rounded-full ${progressColorClass}`} style={{ width: `${Math.min(100, readiness)}%` }}></div>
+                                                            </div>
+                                                            <span className="text-[10px] text-slate-400 font-medium">
+                                                                Cov: {coverage.toFixed(0)}% | Quiz: {quizPerformance.toFixed(0)}%
+                                                            </span>
+                                                        </div>
+                                                    );
+                                                })()}
+                                            </td>
+                                            <td className="px-6 py-5 whitespace-nowrap">
                                                 <div className="inline-flex items-center gap-1.5 text-slate-500 font-semibold text-sm">
                                                     <FileText size={15} className="text-slate-400"/> {item.course?.units} Units
                                                 </div>
@@ -511,7 +625,7 @@ export default function CourseList() {
                                 })}
                                 {paginatedCourses.length === 0 && (
                                     <tr>
-                                        <td colSpan={5} className="py-16 text-center text-slate-400 bg-slate-50/20">
+                                        <td colSpan={6} className="py-16 text-center text-slate-400 bg-slate-50/20">
                                             <div className="flex flex-col items-center justify-center gap-2 max-w-sm mx-auto">
                                                 <FileText size={40} className="text-slate-300 mb-2"/>
                                                 <p className="font-bold text-slate-800 text-sm">No courses matching filters</p>
@@ -557,18 +671,56 @@ export default function CourseList() {
                                             </div>
                                         </div>
                                         
-                                        <div className="flex items-center justify-between text-xs font-semibold text-slate-500 bg-slate-50 p-3 rounded-xl border border-slate-100">
-                                            <div className="flex items-center gap-1.5">
-                                                <FileText size={14} className="text-slate-400"/>
-                                                {item.course?.units} Units
-                                            </div>
-                                            <div className="flex flex-col gap-1 w-24">
-                                                <span className={riskTextClass}>{showTriangle && "▲ "}Level {diff}</span>
-                                                <div className={`w-full h-1 rounded-full ${progressTrackClass} overflow-hidden`}>
-                                                    <div className={`h-full rounded-full ${progressColorClass}`} style={{ width: `${(diff/5)*100}%` }}></div>
+                                        {(() => {
+                                            const { readiness } = calculateReadiness(item);
+                                            let readinessColorClass = "bg-indigo-500";
+                                            let readinessTrackClass = "bg-indigo-50";
+                                            let badgeColorClass = "text-indigo-600 bg-indigo-50 border-indigo-100";
+
+                                            if (readiness >= 70) {
+                                                badgeColorClass = "text-emerald-700 bg-emerald-50 border-emerald-100";
+                                                readinessColorClass = "bg-emerald-500";
+                                                readinessTrackClass = "bg-emerald-50";
+                                            } else if (readiness >= 40) {
+                                                badgeColorClass = "text-amber-700 bg-amber-50 border-amber-100";
+                                                readinessColorClass = "bg-amber-500";
+                                                readinessTrackClass = "bg-amber-50";
+                                            } else if (readiness > 0) {
+                                                badgeColorClass = "text-rose-700 bg-rose-50 border-rose-100";
+                                                readinessColorClass = "bg-rose-500";
+                                                readinessTrackClass = "bg-rose-50";
+                                            } else {
+                                                badgeColorClass = "text-slate-400 bg-slate-50 border-slate-100";
+                                                readinessColorClass = "bg-slate-200";
+                                                readinessTrackClass = "bg-slate-100";
+                                            }
+
+                                            return (
+                                                <div className="flex items-center justify-between text-xs font-semibold text-slate-500 bg-slate-50 p-3 rounded-xl border border-slate-100 gap-4">
+                                                    <div className="flex items-center gap-1 shrink-0">
+                                                        <FileText size={14} className="text-slate-400"/>
+                                                        {item.course?.units} U
+                                                    </div>
+                                                    
+                                                    <div className="flex flex-col gap-0.5 flex-1 min-w-0">
+                                                        <div className="flex justify-between items-center text-[10px]">
+                                                             <span className="text-slate-400 font-medium">Readiness</span>
+                                                             <span className={`font-bold px-1 rounded border ${badgeColorClass}`}>{readiness.toFixed(0)}%</span>
+                                                        </div>
+                                                        <div className={`w-full h-1 rounded-full ${readinessTrackClass} overflow-hidden`}>
+                                                             <div className={`h-full rounded-full ${readinessColorClass}`} style={{ width: `${Math.min(100, readiness)}%` }}></div>
+                                                        </div>
+                                                    </div>
+
+                                                    <div className="flex flex-col gap-0.5 w-18 shrink-0">
+                                                        <span className={`text-[10px] ${riskTextClass} text-right`}>{showTriangle && "▲ "}Lvl {diff}</span>
+                                                        <div className={`w-full h-1 rounded-full ${progressTrackClass} overflow-hidden`}>
+                                                            <div className={`h-full rounded-full ${progressColorClass}`} style={{ width: `${(diff/5)*100}%` }}></div>
+                                                        </div>
+                                                    </div>
                                                 </div>
-                                            </div>
-                                        </div>
+                                            );
+                                        })()}
                                         
                                         <div className="flex justify-between items-center pt-3 border-t border-slate-50 mt-2">
                                             <Link 
