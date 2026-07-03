@@ -615,11 +615,15 @@ Deno.serve(async (req) => {
         .eq('role', 'STUDENT');
       const averageStudyHours = studentCount && studentCount > 0 ? (totalStudyHours / studentCount) : 0;
 
-      const { data: studentsList } = await supabaseAdmin
+      const { data: studentsList, error: queryError } = await supabaseAdmin
         .from('User')
         .select('*, AcademicProfile(program), StudyPlan(StudySession(*)), QuizResult(course_id, topic_name, score_percentage), UserCourse(course_id, Course(CourseTopic(topic_name)))')
         .eq('role', 'STUDENT')
         .not('email', 'like', 'test_%');
+
+      if (queryError) {
+        console.error("DEBUG: PostgREST Query Error:", queryError);
+      }
 
       const programCompletionMap: Record<string, { totalSessions: number, completedSessions: number }> = {};
       const programQuizMap: Record<string, { sum: number, count: number }> = {};

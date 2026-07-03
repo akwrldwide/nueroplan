@@ -254,7 +254,7 @@ export default function AdminAnalytics() {
                       } else if (rate > 55 && rate <= 70) {
                         barColor = 'bg-orange-500';
                       } else if (rate > 70) {
-                        barColor = 'bg-blue-500';
+                        barColor = 'bg-indigo-500';
                       }
                       
                       return (
