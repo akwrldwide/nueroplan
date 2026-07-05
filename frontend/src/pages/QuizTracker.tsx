@@ -11,12 +11,15 @@ export default function QuizTracker() {
   const navigate = useNavigate();
   const [results, setResults] = useState<any[]>([]);
   const [insights, setInsights] = useState<any>(null);
-  const [courses, setCourses] = useState<any[]>([]);
+  const [activeCourses, setActiveCourses] = useState<any[]>([]);
+  const [allCourses, setAllCourses] = useState<any[]>([]);
+  const [allResults, setAllResults] = useState<any[]>([]);
   const [loading, setLoading] = useState(true);
   
   // Filters
   const [timeRange, setTimeRange] = useState('all'); // '7d', '30d', 'all'
   const [courseFilter, setCourseFilter] = useState('all');
+  const [semesterFilter, setSemesterFilter] = useState('current'); // 'current', 'all'
 
   useEffect(() => {
     if (user) {
@@ -28,61 +31,92 @@ export default function QuizTracker() {
     if (user) {
       fetchFilteredResults();
     }
-  }, [timeRange, courseFilter, user]);
+  }, [timeRange, courseFilter, semesterFilter, activeCourses, user]);
+
+  const handleSemesterChange = (newVal: string) => {
+    setSemesterFilter(newVal);
+    // If switching to current semester, and selected course is archived, reset course filter to 'all'
+    if (newVal === 'current' && courseFilter !== 'all') {
+      const isActive = activeCourses.some((c: any) => (c.course_id || c.id) === courseFilter);
+      if (!isActive) {
+        setCourseFilter('all');
+      }
+    }
+  };
+
+  useEffect(() => {
+    if (allResults.length === 0) {
+      setInsights({
+        weeklyQuizzesCount: 0,
+        achievements: { perfectScore: false, consistentLearner: false },
+        averages: { easy: 0, medium: 0, hard: 0 }
+      });
+      return;
+    }
+
+    // Filter results based on semester
+    let relevantResults = allResults;
+    if (semesterFilter === 'current') {
+      const activeCourseIds = new Set(activeCourses.map((c: any) => c.course_id));
+      relevantResults = allResults.filter((r: any) => !r.course_id || activeCourseIds.has(r.course_id));
+    }
+
+    const startOfWeek = new Date();
+    startOfWeek.setHours(0, 0, 0, 0);
+    startOfWeek.setDate(startOfWeek.getDate() - startOfWeek.getDay()); // Sunday start
+
+    const weeklyQuizzesCount = relevantResults.filter((r: any) => new Date(r.taken_at) >= startOfWeek).length;
+
+    let easyCount = 0, easyTotal = 0;
+    let medCount = 0, medTotal = 0;
+    let hardCount = 0, hardTotal = 0;
+    let perfectScores = 0;
+
+    relevantResults.forEach((r: any) => {
+      const diff = r.difficulty || 3;
+      if (diff <= 2) { easyCount++; easyTotal += r.score_percentage; }
+      else if (diff === 3) { medCount++; medTotal += r.score_percentage; }
+      else { hardCount++; hardTotal += r.score_percentage; }
+
+      if (r.score_percentage === 100) perfectScores++;
+    });
+
+    setInsights({
+      weeklyQuizzesCount,
+      achievements: {
+          perfectScore: perfectScores > 0,
+          consistentLearner: relevantResults.length > 10
+      },
+      averages: {
+          easy: easyCount > 0 ? (easyTotal / easyCount) : 0,
+          medium: medCount > 0 ? (medTotal / medCount) : 0,
+          hard: hardCount > 0 ? (hardTotal / hardCount) : 0
+      }
+    });
+  }, [allResults, semesterFilter, activeCourses]);
 
   const fetchStaticData = async () => {
     if (!user) return;
     try {
-      // Fetch user courses
+      // Fetch user courses (both active and archived)
       const { data: coursesData, error: coursesErr } = await supabase
         .from('UserCourse')
         .select('*, course:Course(*)')
-        .eq('user_id', user.id)
-        .eq('is_archived', false);
+        .eq('user_id', user.id);
       if (coursesErr) throw coursesErr;
-      setCourses(coursesData || []);
 
-      // Calculate insights client-side
-      const startOfWeek = new Date();
-      startOfWeek.setHours(0, 0, 0, 0);
-      startOfWeek.setDate(startOfWeek.getDate() - startOfWeek.getDay()); // Sunday start
+      const active = (coursesData || []).filter((c: any) => !c.is_archived);
+      setActiveCourses(active);
+      setAllCourses(coursesData || []);
 
       // Fetch all quiz results
-      const { data: allResults, error: resultsErr } = await supabase
+      const { data: allResultsData, error: resultsErr } = await supabase
         .from('QuizResult')
         .select('*')
         .eq('user_id', user.id);
       if (resultsErr) throw resultsErr;
 
-      const resultsList = allResults || [];
-      const weeklyQuizzesCount = resultsList.filter((r: any) => new Date(r.taken_at) >= startOfWeek).length;
-
-      let easyCount = 0, easyTotal = 0;
-      let medCount = 0, medTotal = 0;
-      let hardCount = 0, hardTotal = 0;
-      let perfectScores = 0;
-
-      resultsList.forEach((r: any) => {
-        const diff = r.difficulty || 3;
-        if (diff <= 2) { easyCount++; easyTotal += r.score_percentage; }
-        else if (diff === 3) { medCount++; medTotal += r.score_percentage; }
-        else { hardCount++; hardTotal += r.score_percentage; }
-
-        if (r.score_percentage === 100) perfectScores++;
-      });
-
-      setInsights({
-        weeklyQuizzesCount,
-        achievements: {
-            perfectScore: perfectScores > 0,
-            consistentLearner: resultsList.length > 10
-        },
-        averages: {
-            easy: easyCount > 0 ? (easyTotal / easyCount) : 0,
-            medium: medCount > 0 ? (medTotal / medCount) : 0,
-            hard: hardCount > 0 ? (hardTotal / hardCount) : 0
-        }
-      });
+      setAllResults(allResultsData || []);
     } catch (err) {
       console.error('Failed to fetch static tracker data', err);
     }
@@ -115,7 +149,14 @@ export default function QuizTracker() {
 
       const { data, error } = await query.order('taken_at', { ascending: false });
       if (error) throw error;
-      setResults(data || []);
+
+      let filtered = data || [];
+      if (semesterFilter === 'current') {
+        const activeCourseIds = new Set(activeCourses.map((c: any) => c.course_id));
+        filtered = filtered.filter((r: any) => !r.course_id || activeCourseIds.has(r.course_id));
+      }
+
+      setResults(filtered);
     } catch (err) {
       console.error('Failed to fetch filtered quiz results', err);
     } finally {
@@ -184,12 +225,20 @@ export default function QuizTracker() {
 
           <div className="flex flex-wrap items-center gap-3">
             <select
+               value={semesterFilter}
+               onChange={(e) => handleSemesterChange(e.target.value)}
+               className="bg-white border border-gray-200 text-gray-700 text-sm rounded-xl px-4 py-2 focus:ring-2 focus:ring-indigo-500 outline-none"
+            >
+               <option value="current">Current Semester</option>
+               <option value="all">All Semesters</option>
+            </select>
+            <select
                value={courseFilter}
                onChange={(e) => setCourseFilter(e.target.value)}
                className="bg-white border border-gray-200 text-gray-700 text-sm rounded-xl px-4 py-2 focus:ring-2 focus:ring-indigo-500 outline-none"
             >
                <option value="all">All Courses</option>
-               {courses.map((c: any) => (
+               {(semesterFilter === 'current' ? activeCourses : allCourses).map((c: any) => (
                  <option key={c.id} value={c.course_id || c.id}>{c.course?.code || c.code}</option>
                ))}
             </select>
