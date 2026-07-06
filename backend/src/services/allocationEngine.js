@@ -247,13 +247,61 @@ async function generateStudyPlan(user_id, fullRecalculate = false, forceFullSeme
         dictQuizCount[key] += 1;
     }
 
+    // Identify courses in Revision Mode dynamically
+    const dictCourseRevisionMode = {};
+    for (const uc of userCourses) {
+        if (uc.is_completed) continue;
+        
+        // 1. Get all active topics selected for this course
+        const courseTopics = selectedTopics.filter(t => t.course_id === uc.course_id);
+        if (courseTopics.length === 0) continue;
+        
+        // 2. Check if all selected topics have mastery_level >= 0.8
+        const allTopicsMastered = courseTopics.every(t => (t.mastery_level || 0) >= 0.8);
+        
+        // 3. Calculate cumulative quiz score (including topic-level and course-level quizzes)
+        let totalQuizScoreSum = 0;
+        let totalQuizCount = 0;
+        
+        if (dictQuizCount[uc.course_id]) {
+            totalQuizScoreSum += dictQuizSum[uc.course_id];
+            totalQuizCount += dictQuizCount[uc.course_id];
+        }
+        
+        for (const t of courseTopics) {
+            if (dictQuizCount[t.topic_name]) {
+                totalQuizScoreSum += dictQuizSum[t.topic_name];
+                totalQuizCount += dictQuizCount[t.topic_name];
+            }
+        }
+        
+        const avgQuizScore = totalQuizCount > 0 ? (totalQuizScoreSum / totalQuizCount) : 0;
+        
+        // Course qualifies for Revision Mode if:
+        // - All topics have mastery_level >= 0.8
+        // - At least one quiz has been attempted
+        // - Average quiz score is >= 80% (0.8)
+        const isRevision = allTopicsMastered && totalQuizCount >= 1 && avgQuizScore >= 0.8;
+        dictCourseRevisionMode[uc.course_id] = isRevision;
+    }
+
+    const revisionCourses = Object.keys(dictCourseRevisionMode).filter(cid => dictCourseRevisionMode[cid]);
+    const numRevisionCourses = revisionCourses.length;
+    const revisionHoursPerCourse = 0.5; // 30 minutes total weekly per revision course
+    
+    const totalRevisionAllocatedHours = numRevisionCourses * revisionHoursPerCourse;
+    const remainingStudyHours = Math.max(0.5, totalAvailableWeeklyHours - totalRevisionAllocatedHours);
+
     // Build prioritized topics (skip completed courses)
-    let topicsWithPriority = [];
-    let totalPriority = 0;
+    let studyModeTopics = [];
+    let revisionModeTopics = [];
+    let totalStudyPriority = 0;
 
     for (const t of selectedTopics) {
         const uc = dictUserCourses[t.course_id];
         if (uc?.is_completed) continue;
+
+        const isRevision = dictCourseRevisionMode[t.course_id] || false;
 
         let topicQuizAvg = dictQuizCount[t.topic_name] ? dictQuizSum[t.topic_name] / dictQuizCount[t.topic_name] : null;
         if (topicQuizAvg === null && dictQuizCount[t.course_id]) {
@@ -267,16 +315,32 @@ async function generateStudyPlan(user_id, fullRecalculate = false, forceFullSeme
         const unitWeight = Math.min(units / 6, 1.0); // normalize assuming 6 is max
 
         const priority = calculateTopicPriority(t, uc, profile, riskFactor, unitWeight, isExamCluster, config);
-        topicsWithPriority.push({ ...t, priority });
-        totalPriority += priority;
+        
+        const topicObj = { ...t, priority, isRevision };
+
+        if (isRevision) {
+            revisionModeTopics.push(topicObj);
+        } else {
+            studyModeTopics.push(topicObj);
+            totalStudyPriority += priority;
+        }
     }
 
-    for (let t of topicsWithPriority) {
-        t.allocatedHours = totalPriority > 0
-            ? (t.priority / totalPriority) * totalAvailableWeeklyHours
-            : totalAvailableWeeklyHours / topicsWithPriority.length;
+    // Allocate hours for Study Mode topics
+    for (let t of studyModeTopics) {
+        t.allocatedHours = totalStudyPriority > 0
+            ? (t.priority / totalStudyPriority) * remainingStudyHours
+            : remainingStudyHours / studyModeTopics.length;
         if (t.allocatedHours < 0.25) t.allocatedHours = 0.25;
     }
+
+    // Allocate hours for Revision Mode topics
+    // Set to 0 because we will dynamically inject the 30-minute revision slot week-by-week in the week loop
+    for (const t of revisionModeTopics) {
+        t.allocatedHours = 0;
+    }
+
+    const topicsWithPriority = [...studyModeTopics, ...revisionModeTopics];
 
     const userTopicIds = topicsWithPriority.map(t => t.id);
 
@@ -300,6 +364,10 @@ async function generateStudyPlan(user_id, fullRecalculate = false, forceFullSeme
     });
 
     let sessionData = [];
+    const dictTopicTotalMinsScheduled = {};
+    for (const t of topicsWithPriority) {
+        dictTopicTotalMinsScheduled[t.id] = 0;
+    }
 
     const addMinutes = (timeStr, mins) => {
         let [h, m] = timeStr.split(':').map(Number);
@@ -440,9 +508,22 @@ async function generateStudyPlan(user_id, fullRecalculate = false, forceFullSeme
             return {
                 ...t,
                 courseForT: courseForT,
-                minsNeeded: Math.round(t.allocatedHours * 60)
+                minsNeeded: Math.round(t.allocatedHours * 60),
+                minsScheduled: dictTopicTotalMinsScheduled[t.id] || 0
             };
         });
+
+        // Dynamic weekly revision allocation: allocate 30 mins to the least-scheduled revision topic
+        const revisionCoursesInWeek = [...new Set(weeklyTopics.filter(t => t.isRevision).map(t => t.course_id))];
+        for (const cid of revisionCoursesInWeek) {
+            const courseTopics = weeklyTopics.filter(t => t.course_id === cid);
+            courseTopics.sort((a, b) => a.minsScheduled - b.minsScheduled);
+            
+            courseTopics[0].minsNeeded = 30; // Allocate exactly 30 minutes (0.5 hours) to this topic this week
+            for (let i = 1; i < courseTopics.length; i++) {
+                courseTopics[i].minsNeeded = 0;
+            }
+        }
 
         // Generate Valid Study Windows and allocate
         let dailyMinsUsedMap = {};
@@ -549,12 +630,18 @@ async function generateStudyPlan(user_id, fullRecalculate = false, forceFullSeme
                 if (candidateTopics.length > 0) {
                     candidateTopics.sort((a, b) => {
                         if (b.score !== a.score) return b.score - a.score;
+                        if (a.topic.minsScheduled !== b.topic.minsScheduled) {
+                            return a.topic.minsScheduled - b.topic.minsScheduled;
+                        }
                         return b.topic.minsNeeded - a.topic.minsNeeded;
                     });
                     selectedTopic = candidateTopics[0].topic;
                 } else {
                     sortedByScore.sort((a, b) => {
                         if (b.score !== a.score) return b.score - a.score;
+                        if (a.topic.minsScheduled !== b.topic.minsScheduled) {
+                            return a.topic.minsScheduled - b.topic.minsScheduled;
+                        }
                         return b.topic.minsNeeded - a.topic.minsNeeded;
                     });
                     selectedTopic = sortedByScore[0].topic;
@@ -569,7 +656,9 @@ async function generateStudyPlan(user_id, fullRecalculate = false, forceFullSeme
                 if (sessionLength < minAllowedSession) break; 
             
                 let sessionType = (isFinalExamDay || isExamDay || slot.isPreExamBlock || nextDayHasExam) ? "REVISION" : "LEARN"; 
-                if (sessionType === "LEARN") {
+                if (t.isRevision) {
+                    sessionType = "REVISION";
+                } else if (sessionType === "LEARN") {
                     if (courseForT && courseForT.exam_date && !courseForT.is_completed) {
                         let diffEx = (new Date(courseForT.exam_date).getTime() - slot.exactDate.getTime()) / (1000 * 60 * 60 * 24);
                         if (diffEx >= 0 && diffEx <= 7) sessionType = "REVISION";
@@ -596,6 +685,8 @@ async function generateStudyPlan(user_id, fullRecalculate = false, forceFullSeme
                 
                 dailyMinsUsed += sessionLength; 
                 t.minsNeeded -= sessionLength; 
+                t.minsScheduled += sessionLength;
+                dictTopicTotalMinsScheduled[t.id] = t.minsScheduled;
                 currentSlotStart = sessionEndMins + 5; // 5 min cognitive break
                 slotRemainingMins = slot.endMins - currentSlotStart; 
             } 

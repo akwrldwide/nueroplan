@@ -1,6 +1,7 @@
 const { PrismaClient } = require('@prisma/client');
 const prisma = new PrismaClient();
 const { GoogleGenerativeAI } = require('@google/generative-ai');
+const { generateStudyPlan } = require('../services/allocationEngine');
 
 const genAI = new GoogleGenerativeAI(process.env.GEMINI_API_KEY || '');
 
@@ -60,6 +61,13 @@ const submitQuiz = async (req, res) => {
                 where: { id: t.id },
                 data: { mastery_level: Math.max(0, Math.min(1, M_next)) }
             });
+        }
+
+        // Auto-recalculate plan
+        try {
+            await generateStudyPlan(req.user.id, true, false);
+        } catch (planErr) {
+            console.error("Error auto-regenerating plan on quiz submission:", planErr);
         }
 
         res.status(201).json({ message: 'Quiz submitted', result });
@@ -161,6 +169,13 @@ const saveAIQuizResult = async (req, res) => {
                     data: { mastery_level: Math.max(0, Math.min(1, M_next)) }
                 });
             }
+        }
+
+        // Auto-recalculate plan
+        try {
+            await generateStudyPlan(req.user.id, true, false);
+        } catch (planErr) {
+            console.error("Error auto-regenerating plan on AI quiz submission:", planErr);
         }
 
         res.status(201).json({ message: 'AI Quiz submitted', result });
