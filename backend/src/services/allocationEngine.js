@@ -652,9 +652,12 @@ async function generateStudyPlan(user_id, fullRecalculate = false, forceFullSeme
                 let minAllowedSession = config ? config.min_session_duration : 30;
                 let maxAllowedSession = config ? config.max_session_duration : 50;
 
-                let sessionLength = Math.min(maxAllowedSession, slotRemainingMins, maxMinutesToday - dailyMinsUsed, Math.max(minAllowedSession, t.minsNeeded)); 
-                if (sessionLength < minAllowedSession) break; 
-            
+                // Protect against student burnout by enforcing a maximum continuous study session cap of 50 minutes.
+                // It dynamically respects minAllowedSession and maxAllowedSession.
+                let maxContinuousBlock = Math.max(minAllowedSession, Math.min(maxAllowedSession, 50));
+
+                let sessionLength = Math.min(maxContinuousBlock, slotRemainingMins, maxMinutesToday - dailyMinsUsed, Math.max(minAllowedSession, t.minsNeeded)); 
+                if (sessionLength < minAllowedSession) break;            
                 let sessionType = (isFinalExamDay || isExamDay || slot.isPreExamBlock || nextDayHasExam) ? "REVISION" : "LEARN"; 
                 if (t.isRevision) {
                     sessionType = "REVISION";

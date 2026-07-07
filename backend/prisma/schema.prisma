@@ -286,7 +286,7 @@ model SystemConfig {
   weight_risk                 Float    @default(0.20)
   weight_course_unit          Float    @default(0.15)
   min_session_duration        Int      @default(30) // minutes
-  max_session_duration        Int      @default(180) // minutes
+  max_session_duration        Int      @default(50) // minutes
   allow_morning_revision      Boolean  @default(false)
   updated_at                  DateTime @updatedAt
 }

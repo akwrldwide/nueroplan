@@ -684,7 +684,7 @@ const getSettings = async (req, res) => {
                     weight_risk: 0.20,
                     weight_course_unit: 0.15,
                     min_session_duration: 30,
-                    max_session_duration: 180,
+                    max_session_duration: 50,
                     allow_morning_revision: false
                 }
             });

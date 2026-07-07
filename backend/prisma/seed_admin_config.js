@@ -22,15 +22,22 @@ async function main() {
         weight_risk: 0.20,
         weight_course_unit: 0.15,
         min_session_duration: 30,
-        max_session_duration: 180,
+        max_session_duration: 50,
         allow_morning_revision: false
       }
     });
     console.log("✓ System configuration initialized with default parameters.");
   } else {
-    console.log("✓ System configuration already exists.");
+    if (existingConfig.max_session_duration === 180) {
+      await prisma.systemConfig.update({
+        where: { id: 'system_config' },
+        data: { max_session_duration: 50 }
+      });
+      console.log("✓ System configuration updated: max_session_duration set to 50.");
+    } else {
+      console.log("✓ System configuration already exists.");
+    }
   }
-
   // 2. Create default Admin user if not already present
   const adminEmail = 'admin@neuroplan.edu';
   const existingAdmin = await prisma.user.findUnique({
