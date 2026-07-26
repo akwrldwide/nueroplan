@@ -2,16 +2,88 @@ name: Keep Supabase Active
 
 on:
   schedule:
-    # Runs every 3 days at midnight UTC (Supabase free tier pauses after 7 days of inactivity)
-    - cron: '0 0 */3 * *'
+    # Runs daily at 04:17 UTC (off-peak minute to avoid GitHub Actions runner queue delays at 00:00 UTC)
+    - cron: '17 4 * * *'
   workflow_dispatch: # Allows manual trigger from the GitHub Actions tab
 
 jobs:
-  ping-db:
+  ping-supabase:
     runs-on: ubuntu-latest
     steps:
-      - name: Ping Supabase REST API
+      - name: Checkout Repository
+        uses: actions/checkout@v4
+
+      - name: Setup Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: '20'
+
+      - name: Ping Supabase REST API & Database
+        env:
+          SUPABASE_ANON_KEY: ${{ secrets.SUPABASE_ANON_KEY }}
+          DATABASE_URL: ${{ secrets.DATABASE_URL }}
         run: |
-          curl -f -X GET "https://hhbvzucwwxntpnwlwzva.supabase.co/rest/v1/Program?select=id&limit=1" \
-            -H "apikey: ${{ secrets.SUPABASE_ANON_KEY }}" \
-            -H "Authorization: Bearer ${{ secrets.SUPABASE_ANON_KEY }}"
+          node -e '
+          const https = require("https");
+
+          async function pingRest() {
+            const url = "https://hhbvzucwwxntpnwlwzva.supabase.co/rest/v1/";
+            const anonKey = process.env.SUPABASE_ANON_KEY || "sb_publishable_lXDqsk5RjiDJPYC_WMhBKw_RYgjwSIs";
+            console.log("--> Pinging Supabase REST API...");
+            
+            return new Promise((resolve) => {
+              const req = https.get(url, {
+                headers: {
+                  "apikey": anonKey,
+                  "Authorization": "Bearer " + anonKey
+                }
+              }, (res) => {
+                console.log("REST API Status Code:", res.statusCode);
+                resolve(res.statusCode >= 200 && res.statusCode < 500);
+              });
+              req.on("error", (err) => {
+                console.error("REST API Ping Error:", err.message);
+                resolve(false);
+              });
+            });
+          }
+
+          async function pingPostgres() {
+            const dbUrl = process.env.DATABASE_URL;
+            if (!dbUrl) {
+              console.log("DATABASE_URL secret not set. Skipping direct Postgres SQL ping.");
+              return true;
+            }
+            console.log("--> Pinging Supabase PostgreSQL directly via SELECT 1...");
+            const { execSync } = require("child_process");
+            try { require("pg"); } catch {
+              console.log("Installing pg module...");
+              execSync("npm install pg", { stdio: "inherit" });
+            }
+            const { Client } = require("pg");
+            const client = new Client({ connectionString: dbUrl, ssl: { rejectUnauthorized: false } });
+            try {
+              await client.connect();
+              const res = await client.query("SELECT 1 as alive;");
+              console.log("PostgreSQL Query Result:", res.rows);
+              await client.end();
+              return true;
+            } catch (err) {
+              console.error("PostgreSQL Ping Error:", err.message);
+              return false;
+            }
+          }
+
+          async function main() {
+            const restOk = await pingRest();
+            const dbOk = await pingPostgres();
+
+            if (!restOk && !dbOk) {
+              console.error("Both REST and Direct DB pings failed!");
+              process.exit(1);
+            }
+            console.log("Keep-alive ping completed successfully!");
+          }
+
+          main();
+          '
